@@ -1,6 +1,6 @@
 # Hello World
 
-<!-- date: 2025-03-05 -->
+<!-- date: 1999-01-01 -->
 
 这是通过VS Code的 `Markdown Preview Enhanced` 插件生成的HTML内容
 
