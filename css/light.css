@@ -169,3 +169,20 @@ footer a:hover {
     border-radius: 8px;
     margin-top: 2rem;
 }
+/* 文章列表项样式 */
+.article-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.article-title {
+    flex: 1;
+}
+
+.article-date {
+    color: var(--footer-text-color);
+    font-size: 0.85rem;
+    margin-left: 10px;
+}

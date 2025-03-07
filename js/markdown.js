@@ -11,10 +11,11 @@ const articlesConfig = {
     // 文章目录路径（相对于网站根目录）
     directory: 'posts/',
     // 文章元数据（标题、日期等）
-    articles: [
-        // 这里会通过AJAX动态获取文章列表
-    ]
+    articles: []
 };
+
+// 检查是否已加载预生成的文章列表
+let preloadedArticlesLoaded = typeof preloadedArticles !== 'undefined';
 
 /**
  * 初始化页面
@@ -126,11 +127,40 @@ async function loadArticleList() {
  * @returns {Promise<Array>} 文章列表数据
  */
 async function scanArticles() {
-    // 在GitHub Pages环境中，我们无法直接读取文件系统
-    // 但我们可以通过请求每个可能的文件来检查它是否存在
+    // 首先检查是否有预加载的文章列表
+    if (preloadedArticlesLoaded && preloadedArticles && preloadedArticles.length > 0) {
+        console.log('使用预加载的文章列表数据');
+        // 存储预加载的文章列表到localStorage以便离线使用
+        storeArticles(preloadedArticles);
+        return preloadedArticles;
+    }
     
-    // 获取当前已知的文章列表（从localStorage或预定义列表）
+    // 其次检查localStorage中是否有缓存的文章列表
     let articles = getStoredArticles();
+    
+    // 如果有缓存的文章列表，直接使用
+    if (articles && articles.length > 0) {
+        console.log('使用缓存的文章列表数据');
+        
+        // 在后台尝试扫描新文章，但不阻塞UI渲染
+        setTimeout(async () => {
+            try {
+                // 尝试扫描新文章
+                await scanNewArticles(articles);
+                // 更新缓存
+                storeArticles(articles);
+                // 如果有新文章，刷新页面显示
+                updateArticleList(articles);
+            } catch (error) {
+                console.error('后台扫描新文章失败:', error);
+            }
+        }, 2000); // 延迟2秒执行，避免影响初始页面加载
+        
+        return articles;
+    }
+    
+    // 如果没有预加载数据也没有缓存，则执行完整扫描
+    console.log('执行完整文章扫描');
     
     // 确保articles是一个数组
     if (!articles) {
@@ -287,7 +317,24 @@ function updateArticleList(articles) {
         const li = document.createElement('li');
         const a = document.createElement('a');
         a.href = `posts/article.html?article=${article.file}`;
-        a.textContent = article.title;
+        
+        // 创建一个容器来包含标题和日期
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'article-item';
+        
+        // 添加标题
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'article-title';
+        titleSpan.textContent = article.title;
+        contentDiv.appendChild(titleSpan);
+        
+        // 添加日期
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'article-date';
+        dateSpan.textContent = article.date;
+        contentDiv.appendChild(dateSpan);
+        
+        a.appendChild(contentDiv);
         li.appendChild(a);
         navContainer.appendChild(li);
     });
