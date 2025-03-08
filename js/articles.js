@@ -7,6 +7,16 @@
 // 预生成的文章列表数据
 const preloadedArticles = [
   {
+    "title": "v7版本更新文档",
+    "file": "post12.md",
+    "date": "2025-03-12"
+  },
+  {
+    "title": "示例文章5",
+    "file": "post11.md",
+    "date": "2025-03-11"
+  },
+  {
     "title": "v6版本更新文档",
     "file": "post10.md",
     "date": "2025-03-10"
