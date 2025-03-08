@@ -18,7 +18,7 @@ const commentsConfig = {
     currentPage: 1,
     // GitHub Personal Access Token (需要替换为你自己的token)
     // 注意：在生产环境中，应该使用更安全的方式存储token
-    token: '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' // 这里需要填入你的GitHub Personal Access Token
+    token: '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' // 这里需要填入你的GitHub Personal Access Token
 };
 
 /**
