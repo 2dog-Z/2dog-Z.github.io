@@ -1,0 +1,154 @@
+/**
+ * 评论系统样式
+ * 符合VSCode主题风格的评论区样式
+ */
+
+/* 评论区容器 */
+.comments-section {
+    margin-top: 2rem;
+    padding: 1rem;
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+/* 评论区标题 */
+.comments-section h3 {
+    color: var(--accent-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    margin-top: 0;
+}
+
+/* 评论表单 */
+.comment-form {
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+    resize: vertical;
+}
+
+.form-group textarea {
+    min-height: 100px;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(86, 156, 214, 0.3);
+}
+
+.form-group button {
+    background-color: var(--accent-color);
+    color: #ffffff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Consolas', monospace;
+    transition: background-color 0.2s ease;
+}
+
+.form-group button:hover {
+    background-color: #4a85c9;
+}
+
+.form-group button:disabled {
+    background-color: #666666;
+    cursor: not-allowed;
+}
+
+/* 评论列表 */
+.comments-list {
+    margin-bottom: 1rem;
+}
+
+.comment-item {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.comment-author {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+.comment-date {
+    color: var(--footer-text-color);
+    font-size: 0.9rem;
+}
+
+.comment-content {
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+/* 加载中和错误提示 */
+.loading,
+.error-message,
+.no-comments {
+    padding: 1rem;
+    text-align: center;
+    color: var(--footer-text-color);
+}
+
+.error-message {
+    color: #f44747;
+}
+
+/* 分页控制器 */
+.comments-pagination {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+}
+
+.pagination button {
+    background-color: var(--code-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pagination button:hover {
+    background-color: var(--accent-color);
+    color: #ffffff;
+}
+
+.page-info {
+    color: var(--footer-text-color);
+}

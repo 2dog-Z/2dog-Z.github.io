@@ -425,15 +425,6 @@ async function loadAndRenderMarkdown(mdFilePath) {
         // 添加内容到文章容器
         articleContainer.appendChild(contentDiv);
         
-        // 添加返回首页链接
-        const homeLinkP = document.createElement('p');
-        homeLinkP.className = 'home-link';
-        const homeLink = document.createElement('a');
-        homeLink.href = '../index.html';
-        homeLink.textContent = '返回首页';
-        homeLinkP.appendChild(homeLink);
-        articleContainer.appendChild(homeLinkP);
-        
         console.log('Markdown内容已成功渲染');
     } catch (error) {
         console.error('加载Markdown内容失败:', error);
