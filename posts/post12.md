@@ -6,7 +6,7 @@
 
 ### 评论系统集成
 
-- **特别鸣谢：**思路由[Gitalk项目](https://github.com/gitalk/gitalk)提供，用最简单的方式实现了核心评论功能的复现
+- **特别鸣谢**：思路由[Gitalk项目](https://github.com/gitalk/gitalk)提供，用最简单的方式实现了核心评论功能的复现
 
 - **GitHub Issues API集成**：利用GitHub Issues作为评论后端存储，无需额外数据库
 - **无需登录评论**：用户只需填写昵称即可发表评论，降低参与门槛
