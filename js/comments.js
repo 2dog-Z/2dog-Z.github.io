@@ -81,11 +81,11 @@ function createCommentsContainer() {
     paginationContainer.className = 'comments-pagination';
     commentsSection.appendChild(paginationContainer);
 
-    // 找到about-link元素
-    const aboutLink = document.querySelector('.about-link');
-    if (aboutLink) {
-        // 在about-link元素后面插入评论区
-        aboutLink.parentNode.insertBefore(commentsSection, aboutLink.nextSibling);
+    // 找到home-link元素（返回首页按钮）
+    const homeLink = document.querySelector('.home-link');
+    if (homeLink) {
+        // 在home-link元素后面插入评论区
+        homeLink.parentNode.insertBefore(commentsSection, homeLink.nextSibling);
     }
 
     // 添加提交评论事件监听

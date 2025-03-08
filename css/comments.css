@@ -5,11 +5,13 @@
 
 /* 评论区容器 */
 .comments-section {
-    margin-top: 2rem;
-    padding: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 2rem;
+    padding: 1.2rem;
     background-color: var(--code-bg);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* 评论区标题 */
@@ -57,10 +59,12 @@
     color: #ffffff;
     border: none;
     padding: 0.5rem 1rem;
-    border-radius: 4px;
+    border-radius: 3px;
     cursor: pointer;
     font-family: 'Consolas', monospace;
     transition: background-color 0.2s ease;
+    font-size: 0.9rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .form-group button:hover {
@@ -82,7 +86,8 @@
     margin-bottom: 1rem;
     background-color: var(--bg-color);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 .comment-header {
@@ -139,7 +144,7 @@
     color: var(--text-color);
     border: 1px solid var(--border-color);
     padding: 0.3rem 0.8rem;
-    border-radius: 4px;
+    border-radius: 3px;
     cursor: pointer;
     transition: all 0.2s ease;
 }
