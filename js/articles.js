@@ -7,6 +7,11 @@
 // 预生成的文章列表数据
 const preloadedArticles = [
   {
+    "title": "从零开始学习前端开发：构建简易留言板",
+    "file": "post13.md",
+    "date": "2025-03-18"
+  },
+  {
     "title": "v7版本更新文档",
     "file": "post12.md",
     "date": "2025-03-12"

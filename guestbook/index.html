@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>留言板</title>
+    <link rel="stylesheet" href="./css/guestbook.css">
+</head>
+<body>
+    <header>
+        <h1><a href="#" title="留言板首页">留言板</a></h1>
+        <div class="tutorial-button-container">
+            <a href="./tutorial" class="tutorial-button">进入教程</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="guestbook-container">
+            <h2>留言板</h2>
+            <p class="guestbook-intro">欢迎来到留言板！</p>
+            
+            <!-- 留言表单 -->
+            <div class="message-form">
+                <div class="form-group">
+                    <input type="text" id="message-nickname" placeholder="昵称" required>
+                </div>
+                <div class="form-group">
+                    <textarea id="message-content" placeholder="说点什么吧..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <button id="submit-message">发表留言</button>
+                </div>
+            </div>
+            
+            <!-- 留言列表 -->
+            <div id="messages-list" class="messages-list">
+                <div class="loading">加载留言中...</div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>留言板示例</p>
+    </footer>
+
+    <script src="./js/theme.js"></script>
+    <script src="./js/guestbook.js"></script>
+</body>
+</html>

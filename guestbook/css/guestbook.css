@@ -1,0 +1,237 @@
+/**
+ * 留言板系统样式
+ * 简洁易懂的留言板样式，适合前端初学者学习
+ */
+
+/* 全局样式变量 - CSS变量是一个重要的基础知识点 */
+:root {
+    --main-bg-color: #ffffff;
+    --container-bg-color: #f8f9fa;
+    --border-color: #e1e4e8;
+    --text-color: #24292e;
+    --accent-color: #0366d6;
+    --secondary-text-color: #586069;
+}
+
+/* 全局样式 - 基础的页面布局 */
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--main-bg-color);
+    margin: 0;
+    padding: 20px;
+}
+
+/* 留言板容器 - 盒模型知识点 */
+.guestbook-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: var(--container-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+}
+
+/* 留言板标题和介绍 - 文本样式知识点 */
+.guestbook-container h2 {
+    color: var(--accent-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    margin-top: 0;
+    font-size: 24px;
+}
+
+.guestbook-intro {
+    margin-bottom: 20px;
+    line-height: 1.6;
+    color: var(--text-color);
+}
+
+/* 留言表单 - 表单样式知识点 */
+.message-form {
+    margin-bottom: 30px;
+    padding: 15px;
+    background-color: var(--main-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.form-group textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.form-group button {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.form-group button:hover {
+    background-color: #0358c3;
+}
+
+.form-group button:disabled {
+    background-color: #666666;
+    cursor: not-allowed;
+}
+
+/* 教程按钮样式 - 醒目的按钮 */
+.tutorial-button-container {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.tutorial-button {
+    display: inline-block;
+    background-color: var(--accent-color);
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-decoration: none;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.tutorial-button:hover {
+    background-color: #0358c3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 留言列表 - 列表样式知识点 */
+.messages-list {
+    margin-bottom: 20px;
+}
+
+.message-item {
+    padding: 15px;
+    margin-bottom: 15px;
+    background-color: var(--main-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.message-author {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+.message-date {
+    color: var(--secondary-text-color);
+    font-size: 14px;
+}
+
+.message-content {
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* 加载中和错误提示 */
+.loading,
+.error-message,
+.no-messages {
+    padding: 15px;
+    text-align: center;
+    color: var(--secondary-text-color);
+    background-color: var(--main-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+/* 页眉和页脚样式 - 页面结构知识点 */
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 28px;
+}
+
+header h1 a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+header h1 a:hover {
+    text-decoration: underline;
+}
+
+footer {
+    text-align: center;
+    margin-top: 30px;
+    padding: 15px 0;
+    color: var(--secondary-text-color);
+}
+
+footer a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+.home-link, .about-link {
+    text-align: center;
+    margin: 15px 0;
+}
+
+.home-link a, .about-link a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+.home-link a:hover, .about-link a:hover {
+    text-decoration: underline;
+}
+
+/* 响应式设计 - 媒体查询知识点 */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    .guestbook-container {
+        padding: 15px;
+    }
+}
