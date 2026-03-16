@@ -3,7 +3,7 @@ title: Hello World
 date: 2026-03-16
 ---
 
-Welcome! This is the personal blog of Chambers Z.
+Welcome! This is a Terminal-Style Personal Blog of Chambers Z.
 
 
 ## About Me
