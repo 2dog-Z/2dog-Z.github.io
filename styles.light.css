@@ -1,14 +1,14 @@
 :root {
-  --bg: #1e1e1e;
-  --panel: #252526;
-  --panel2: #1f1f1f;
-  --border: #3c3c3c;
-  --text: #d4d4d4;
-  --muted: #9da0a2;
-  --accent: #569cd6;
-  --terminalBg: #000000;
-  --terminalText: #d4d4d4;
-  --terminalGreen: #7cfc98;
+  --bg: #ffffff;
+  --panel: #f3f3f3;
+  --panel2: #ffffff;
+  --border: #d4d4d4;
+  --text: #1f1f1f;
+  --muted: #5f5f5f;
+  --accent: #0066bf;
+  --terminalBg: #ffffff;
+  --terminalText: #1f1f1f;
+  --terminalGreen: #0b6a0b;
 }
 
 * {
@@ -66,7 +66,7 @@ body {
 .terminal {
   flex: 1;
   background: var(--panel);
-  border-color: #0e0e0e;
+  border-color: #d4d4d4;
   display: flex;
   flex-direction: column;
   padding: 12px;
@@ -78,7 +78,7 @@ body {
 .contentHeader {
   padding: 18px 18px 10px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.03), rgba(255, 255, 255, 0));
 }
 
 .title {
@@ -130,7 +130,7 @@ body {
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #1b1b1c;
+  background: #ffffff;
 }
 
 .cheatSheet {
@@ -142,7 +142,7 @@ body {
 .cheatSheet th,
 .cheatSheet td {
   padding: 10px 12px;
-  border-bottom: 1px solid #2d2d2d;
+  border-bottom: 1px solid #e5e5e5;
   vertical-align: top;
 }
 
@@ -150,7 +150,7 @@ body {
   text-align: left;
   font-weight: 600;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .cheatSheet tr:last-child td {
@@ -165,7 +165,7 @@ body {
 
 .cheatSheet td:nth-child(2) {
   width: 160px;
-  color: #c586c0;
+  color: #7a3e9d;
 }
 
 .commentsHeader {
@@ -182,8 +182,8 @@ body {
 }
 
 .commentItem {
-  border: 1px solid #2d2d2d;
-  background: #1b1b1c;
+  border: 1px solid #e5e5e5;
+  background: #ffffff;
   border-radius: 10px;
   padding: 0;
   overflow: hidden;
@@ -195,13 +195,13 @@ body {
   justify-content: space-between;
   gap: 10px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid #2d2d2d;
+  background: rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid #e5e5e5;
 }
 
 .commentName {
   font-weight: 600;
-  color: rgba(212, 212, 212, 0.72);
+  color: rgba(31, 31, 31, 0.72);
   max-width: 64%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -238,7 +238,7 @@ body {
 }
 
 .terminalLine.dim {
-  color: rgba(212, 212, 212, 0.78);
+  color: rgba(31, 31, 31, 0.78);
 }
 
 .terminalLine.green {
@@ -260,7 +260,7 @@ body {
   align-items: center;
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .terminalInputRow:not(:focus-within) .cursor {
@@ -287,7 +287,7 @@ body {
 .cursor {
   width: 10px;
   height: 18px;
-  background: rgba(212, 212, 212, 0.85);
+  background: rgba(31, 31, 31, 0.7);
   border-radius: 2px;
   animation: blink 1.05s step-end infinite;
 }
