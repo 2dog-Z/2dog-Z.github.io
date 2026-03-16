@@ -36,6 +36,43 @@ function escapeAttribute(input) {
   return escapeHtml(input).replaceAll("`", "&#96;");
 }
 
+function normalizeSiteHref(href) {
+  const s = String(href ?? "").trim();
+  if (!s) return "";
+  if (s.startsWith("#")) return s;
+  if (s.startsWith("//")) return s;
+  if (s.startsWith("mailto:")) return s;
+  if (s.startsWith("./") || s.startsWith("../")) return s;
+
+  const basePath = new URL(".", window.location.href).pathname;
+
+  if (s.startsWith("/")) {
+    if (basePath !== "/" && s.startsWith(basePath)) {
+      const rest = s.slice(basePath.length).replace(/^\/+/, "");
+      return rest ? `./${rest}` : "./";
+    }
+    return `.${s}`;
+  }
+
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      const u = new URL(s);
+      if (u.origin !== window.location.origin) return s;
+      const p = u.pathname;
+      if (basePath !== "/" && p.startsWith(basePath)) {
+        const rest = p.slice(basePath.length).replace(/^\/+/, "");
+        const rel = rest ? `./${rest}` : "./";
+        return `${rel}${u.search}${u.hash}`;
+      }
+      return `.${p}${u.search}${u.hash}`;
+    } catch {
+      return s;
+    }
+  }
+
+  return s;
+}
+
 /**
  * 判断链接是否允许输出为 <a>。
  * 目的：防止 javascript: 等危险协议；仅允许 http(s)/mailto/站内相对路径/锚点。
@@ -62,7 +99,8 @@ function renderInline(text) {
   s = s.replaceAll(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
     const rawHref = String(href ?? "").trim();
     if (!isSafeLink(rawHref)) return label;
-    return `<a href="${escapeAttribute(rawHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+    const normalizedHref = normalizeSiteHref(rawHref);
+    return `<a href="${escapeAttribute(normalizedHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
   });
   return s;
 }
