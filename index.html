@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HomePage</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="top">
+        <section class="panel content" aria-label="内容展示区">
+          <header class="contentHeader">
+            <h1 class="title">Hello World</h1>
+          </header>
+
+          <div class="contentBody">
+            <div class="contentHint">
+              This is a fully static personal homepage: content on the left, comments on the right, and an interactive terminal below.
+            </div>
+          </div>
+
+          <footer class="contentFooter" aria-label="Command Cheat Sheet">
+            <div class="sectionTitle">Command Cheat Sheet</div>
+            <div class="tableWrap">
+              <table class="cheatSheet">
+                <thead>
+                  <tr>
+                    <th>Command</th>
+                    <th>Args</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>ls</strong></td>
+                    <td>None</td>
+                    <td>List directories or files in the current level.</td>
+                  </tr>
+                  <tr>
+                    <td><strong>cd</strong></td>
+                    <td>[path/category]</td>
+                    <td>Enter the specified article category.</td>
+                  </tr>
+                  <tr>
+                    <td><strong>..</strong></td>
+                    <td>None</td>
+                    <td>Go back to the parent directory.</td>
+                  </tr>
+                  <tr>
+                    <td><strong>cat</strong></td>
+                    <td>[filename]</td>
+                    <td>Open and read the specified article.</td>
+                  </tr>
+                  <tr>
+                    <td><strong>say</strong></td>
+                    <td>[text]</td>
+                    <td>Leave a comment or message.</td>
+                  </tr>
+                  <tr>
+                    <td><strong>help</strong></td>
+                    <td>None</td>
+                    <td>Show all available commands and their descriptions.</td>
+                  </tr>
+                  <tr>
+                    <td><strong>clear</strong></td>
+                    <td>None</td>
+                    <td>Clear the terminal screen.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </footer>
+        </section>
+
+        <aside class="panel comments" aria-label="评论展示区">
+          <div class="commentsHeader">
+            <div class="sectionTitle">Comments</div>
+          </div>
+          <div id="commentsList" class="commentsList" role="list"></div>
+        </aside>
+      </section>
+
+      <section class="panel terminal" aria-label="Interactive Terminal">
+        <div id="terminalOutput" class="terminalOutput" aria-live="polite"></div>
+        <div class="terminalInputRow">
+          <span class="prompt" id="promptText"></span>
+          <input
+            id="terminalInput"
+            class="terminalInput"
+            type="text"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-label="终端输入"
+          />
+          <span class="cursor" aria-hidden="true"></span>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
