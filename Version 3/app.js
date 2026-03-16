@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE, FILE_SYSTEM, THEME_STORAGE_KEY } from "./modules/constants.js";
+import { DEFAULT_PAGE, THEME_STORAGE_KEY } from "./modules/constants.js";
 import { setupComments } from "./modules/comments.js";
 import { createContentRenderer } from "./modules/contentRenderer.js";
 import { createTerminal } from "./modules/terminal.js";
@@ -31,7 +31,7 @@ window.addEventListener("DOMContentLoaded", () => {
    * 创建内容渲染器并渲染默认页面。
    * 目的：首屏内容区不为空，且后续 cat/cd 可以复用同一个渲染器。
    */
-  const renderer = createContentRenderer({ fileSystem: FILE_SYSTEM });
+  const renderer = createContentRenderer();
   void renderer.renderPath(DEFAULT_PAGE);
 
   /**
@@ -42,19 +42,6 @@ window.addEventListener("DOMContentLoaded", () => {
     renderPath: renderer.renderPath,
     applyTheme: (t) => setTheme(t, { persist: true }),
     readTheme: getTheme,
-  });
-  window.__terminal = term;
-  document.addEventListener("click", (e) => {
-    const t = e.target;
-    if (!(t instanceof HTMLElement)) return;
-    if (t.closest(".terminal")) return;
-    if (t.closest("a")) return;
-    const el = t.closest("[data-cmd]");
-    if (!(el instanceof HTMLElement)) return;
-    const cmd = el.dataset.cmd;
-    if (!cmd) return;
-    e.preventDefault();
-    window.__terminal?.run?.(cmd, { echo: true });
   });
 
   /**

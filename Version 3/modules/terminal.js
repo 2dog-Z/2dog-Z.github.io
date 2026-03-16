@@ -1,6 +1,5 @@
 import { CHEAT_SHEET, DEFAULT_PAGE, FILE_SYSTEM } from "./constants.js";
-import { getMarkdownMeta } from "./markdown.js";
-import { joinPath, resolveDir, sleep, stripFileExtension, tokenize } from "./utils.js";
+import { joinPath, listDir, resolveDir, sleep, stripFileExtension, tokenize } from "./utils.js";
 
 /**
  * 交互式终端模块：负责“下方终端区域”的所有交互与渲染。
@@ -243,7 +242,7 @@ export function createTerminal(options = {}) {
 
   /**
    * 输出某路径下的树形结构（带可点击跳转）。
-   * 功能：根目录展示顶层目录；子目录展示目录/文件（文件名保留后缀便于辨识）。
+   * 功能：根目录展示顶层目录；子目录展示目录/文件（文件去扩展名）。
    * 目的：让 ls 不只是纯文本，而是一个可交互的导航。
    */
   async function printTreeForPath(pathParts) {
@@ -255,30 +254,7 @@ export function createTerminal(options = {}) {
         ? Object.keys(FILE_SYSTEM)
             .sort()
             .map((name) => [name, FILE_SYSTEM[name]])
-        : await (async () => {
-            const dirs = [];
-            const files = [];
-            for (const [name, value] of Object.entries(node)) {
-              if (value && typeof value === "object") dirs.push([name, value]);
-              else files.push([name, value]);
-            }
-            dirs.sort(([a], [b]) => a.localeCompare(b));
-            const filesWithMeta = await Promise.all(
-              files.map(async ([name, value]) => {
-                if (typeof value === "string" && name.endsWith(".md")) {
-                  const meta = await getMarkdownMeta(value);
-                  const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
-                  return { name, value, t };
-                }
-                return { name, value, t: -Infinity };
-              })
-            );
-            filesWithMeta.sort((a, b) => {
-              if (b.t !== a.t) return b.t - a.t;
-              return a.name.localeCompare(b.name);
-            });
-            return [...dirs, ...filesWithMeta.map((x) => [x.name, x.value])];
-          })();
+        : Object.entries(node).sort(([a], [b]) => a.localeCompare(b));
 
     beginPrinting();
     appendLineInstant(".", "dim");
@@ -295,9 +271,9 @@ export function createTerminal(options = {}) {
         continue;
       }
 
-      const base = stripFileExtension(name);
-      const absFile = toAbsolutePath([...pathParts, base]);
-      appendLinePartsInstant([prefix, createJumpLink(name, `cat ${absFile}`)], "dim");
+      const display = stripFileExtension(name);
+      const absFile = toAbsolutePath([...pathParts, display]);
+      appendLinePartsInstant([prefix, createJumpLink(display, `cat ${absFile}`)], "dim");
     }
     endPrinting();
   }
@@ -309,45 +285,20 @@ export function createTerminal(options = {}) {
    */
   async function printLs() {
     if (cwd.length === 0) return await printTreeForPath([]);
-    const node = resolveDir(FILE_SYSTEM, cwd);
-    if (!node) return await typewriter("ls: directory not found", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
-
-    const dirs = [];
-    const files = [];
-    for (const [name, value] of Object.entries(node)) {
-      if (value && typeof value === "object") dirs.push({ name, url: "" });
-      else if (typeof value === "string") files.push({ name, url: value });
-    }
-    if (dirs.length === 0 && files.length === 0) return await typewriter("(empty)", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
-
-    const fileWithMeta = await Promise.all(
-      files.map(async (f) => {
-        if (f.name.endsWith(".md")) {
-          const meta = await getMarkdownMeta(f.url);
-          const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
-          return { ...f, t };
-        }
-        return { ...f, t: -Infinity };
-      })
-    );
-
-    dirs.sort((a, b) => a.name.localeCompare(b.name));
-    fileWithMeta.sort((a, b) => {
-      if (b.t !== a.t) return b.t - a.t;
-      return a.name.localeCompare(b.name);
-    });
-
+    const items = listDir(FILE_SYSTEM, cwd);
+    if (!items) return await typewriter("ls: directory not found", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
+    if (items.length === 0) return await typewriter("(empty)", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
     beginPrinting();
-    for (const d of dirs) {
+    for (const item of items) {
       await sleep(26);
-      const absDir = toAbsolutePath([...cwd, d.name]);
-      appendLinePartsInstant([createJumpLink(`${d.name}/`, `cd ${absDir}`)], "dim");
-    }
-    for (const f of fileWithMeta) {
-      await sleep(26);
-      const base = stripFileExtension(f.name);
-      const absFile = toAbsolutePath([...cwd, base]);
-      appendLinePartsInstant([createJumpLink(f.name, `cat ${absFile}`)], "dim");
+      if (item.endsWith("/")) {
+        const dirName = item.slice(0, -1);
+        const absDir = toAbsolutePath([...cwd, dirName]);
+        appendLinePartsInstant([createJumpLink(item, `cd ${absDir}`)], "dim");
+        continue;
+      }
+      const absFile = toAbsolutePath([...cwd, item]);
+      appendLinePartsInstant([createJumpLink(item, `cat ${absFile}`)], "dim");
     }
     endPrinting();
   }
@@ -426,7 +377,7 @@ export function createTerminal(options = {}) {
       return;
     }
     const node = resolveDir(FILE_SYSTEM, cwd);
-    const indexPath = node?.["index.md"] ?? node?.["index.html"];
+    const indexPath = node?.["index.html"];
     if (typeof indexPath === "string") void renderPath(indexPath);
   }
 
@@ -632,11 +583,6 @@ export function createTerminal(options = {}) {
 
   return {
     focus: focusInput,
-    run(cmd, options = {}) {
-      const { echo = true } = options;
-      if (isPrinting || isLocked) return;
-      void handleCommand(String(cmd ?? ""), { typeEcho: echo });
-    },
     /**
      * 终端启动流程。
      * 功能：

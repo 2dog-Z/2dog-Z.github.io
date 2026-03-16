@@ -6,9 +6,9 @@
   --text: #1f1f1f;
   --muted: #5f5f5f;
   --accent: #0066bf;
-  --terminalBg: #000000;
-  --terminalText: #d4d4d4;
-  --terminalGreen: #7cfc98;
+  --terminalBg: #ffffff;
+  --terminalText: #1f1f1f;
+  --terminalGreen: #0b6a0b;
 }
 
 * {
@@ -65,7 +65,7 @@ body {
 
 .terminal {
   flex: 1;
-  background: var(--terminalBg);
+  background: var(--panel);
   border-color: #d4d4d4;
   display: flex;
   flex-direction: column;
@@ -79,44 +79,6 @@ body {
   padding: 18px 18px 10px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.03), rgba(255, 255, 255, 0));
-}
-
-.contentHeaderRow {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.contentHeaderNav {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
-}
-
-.contentHeaderNavItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(0, 0, 0, 0.04);
-  color: rgba(31, 31, 31, 0.92);
-  cursor: pointer;
-  user-select: none;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-.contentHeaderNavItem:hover {
-  border-color: rgba(0, 102, 191, 0.55);
-  background: rgba(0, 102, 191, 0.12);
-  color: rgba(31, 31, 31, 0.98);
 }
 
 .title {
@@ -154,145 +116,6 @@ body {
   padding: 12px 18px 18px;
   border-top: 1px solid var(--border);
   background: var(--panel2);
-}
-
-.mdArticle {
-  max-width: 76ch;
-}
-
-.mdMeta {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
-}
-
-.mdDate {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.mdContent {
-  line-height: 1.65;
-}
-
-.mdContent p.mdIndent {
-  text-indent: 2em;
-}
-
-.mdContent a {
-  color: var(--accent);
-}
-
-.mdSocialLinks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  align-items: center;
-}
-
-.mdSocialLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text);
-  text-decoration: none;
-}
-
-.mdSocialLink:hover {
-  border-color: rgba(0, 102, 191, 0.55);
-  background: rgba(0, 102, 191, 0.12);
-  color: var(--text);
-}
-
-.mdSocialIcon {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent);
-  flex: 0 0 auto;
-}
-
-.mdSocialIcon svg {
-  width: 18px;
-  height: 18px;
-  display: block;
-}
-
-.mdSocialText {
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.2;
-}
-
-.mdContent code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.95em;
-  background: rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 6px;
-  padding: 1px 6px;
-}
-
-.mdContent pre {
-  overflow: auto;
-  background: #ffffff;
-  border: 1px solid #d4d4d4;
-  border-radius: 10px;
-  padding: 12px;
-}
-
-.mdContent pre code {
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.mdPostList {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.mdPostItem {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  border: 1px solid #d4d4d4;
-  background: #ffffff;
-  border-radius: 10px;
-  padding: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.mdPostItem:hover {
-  border-color: rgba(0, 102, 191, 0.45);
-  background: rgba(0, 102, 191, 0.08);
-}
-
-.mdPostDate {
-  width: 92px;
-  font-size: 12px;
-  color: var(--muted);
-  flex: 0 0 auto;
-}
-
-.mdPostTitle {
-  flex: 1 1 auto;
-  font-weight: 600;
-}
-
-.mdPostCmd {
-  flex: 0 0 auto;
 }
 
 .sectionTitle {

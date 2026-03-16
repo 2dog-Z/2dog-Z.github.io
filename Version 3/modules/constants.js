@@ -31,13 +31,10 @@ export const CHEAT_SHEET = [
  */
 export const FILE_SYSTEM = {
   aboutme: {
-    "index.md": "./aboutme/index.md",
+    "index.html": "./aboutme/index.html",
   },
   post: {
-    "index.md": "./post/index.md",
-    "2026-03-15-getting-started.md": "./post/2026-03-15-getting-started.md",
-    "2026-03-10-notes.md": "./post/2026-03-10-notes.md",
-    "2026-02-28-links-and-format.md": "./post/2026-02-28-links-and-format.md",
+    "index.html": "./post/index.html",
   },
 };
 
@@ -45,7 +42,7 @@ export const FILE_SYSTEM = {
  * 默认打开的页面（进入站点后内容区第一次渲染的文章）。
  * 功能：提供一个“落地页”内容，避免首次进入内容区为空。
  */
-export const DEFAULT_PAGE = "./post/index.md";
+export const DEFAULT_PAGE = "./post/index.html";
 
 /**
  * 主题在 localStorage 中使用的 key。
