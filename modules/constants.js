@@ -56,3 +56,11 @@ export const DEFAULT_PAGE = "./index.md";
 export const THEME_STORAGE_KEY = "theme";
 export const TERMINAL_MAX_LINES = 100;
 export const TERMINAL_TRIM_TOP_LINES = 50;
+
+/**
+ * 终端输出裁剪策略。
+ * 背景：终端会不断向 DOM 追加输出行，如果不做限制，长时间使用会造成页面越来越卡。
+ * 规则：
+ * - 当输出行数达到 TERMINAL_MAX_LINES 时，从顶部移除 TERMINAL_TRIM_TOP_LINES 行
+ * - 这样既能保留最近上下文，也能避免每次只删 1 行导致频繁 reflow
+ */

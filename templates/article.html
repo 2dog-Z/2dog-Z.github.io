@@ -1,4 +1,10 @@
 <article class="mdArticle">
+  <!--
+    文章模板：
+    - {{content}}：由 Markdown 渲染器输出的文章正文 HTML
+    - {{date}}：由 front matter 或文件名推断出的日期（YYYY-MM-DD）
+    目的：把“文章外壳结构”和“文章内容”分离，便于统一排版与后续扩展（如加入目录/标签等）
+  -->
   <div class="mdContent">{{content}}</div>
   <div class="mdMeta">
     <div class="mdDate">{{date}}</div>

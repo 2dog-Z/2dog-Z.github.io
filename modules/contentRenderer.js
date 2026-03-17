@@ -19,6 +19,34 @@ export function createContentRenderer(options = {}) {
   const onPathRendered = options.onPathRendered;
 
   /**
+   * 从文章文件名中推断日期（推荐文件名格式：YYYY-MM-DD-xxx.md）。
+   * 用途：
+   * - 文章很多时避免为“列表展示”批量 fetch 全部 meta，改用文件名快速排序/展示，保证不卡顿。
+   * - 当文章缺少 front matter date 时，也能有一个稳定的显示日期。
+   */
+  function parseDateFromPostKey(key) {
+    const base = stripFileExtension(String(key ?? ""));
+    const m = base.match(/^(\d{4}-\d{2}-\d{2})(?:-|$)/);
+    return m ? m[1] : "";
+  }
+
+  /**
+   * 按“日期从新到旧”比较两篇文章的文件名。
+   * 规则：
+   * - 两者都能解析出日期：按日期降序
+   * - 只有一方有日期：有日期的更靠前
+   * - 都没有日期：按文件名排序，保证稳定输出
+   */
+  function comparePostKeysDesc(aKey, bKey) {
+    const aDate = parseDateFromPostKey(aKey);
+    const bDate = parseDateFromPostKey(bKey);
+    if (aDate && bDate && aDate !== bDate) return bDate.localeCompare(aDate);
+    if (aDate && !bDate) return -1;
+    if (!aDate && bDate) return 1;
+    return String(aKey ?? "").localeCompare(String(bKey ?? ""));
+  }
+
+  /**
    * 生成命令速查表的 HTML。
    * 用途：在 Markdown 中通过 {{cheatSheet}} 占位符注入（例如首页）。
    */
@@ -40,58 +68,78 @@ export function createContentRenderer(options = {}) {
   /**
    * 生成“最新文章列表”的 HTML，并按 date 从近到远排序。
    * 数据来源：传入的 fileSystem.post（虚拟文件系统中的 post 目录）。
-   * 用途：在 Markdown 中通过 {{posts}} 占位符注入（例如首页）。
+   * 用途：在 Markdown 中通过 {{postLatest}} 占位符注入（例如根首页）。
+   *
+   * 性能策略（首屏友好）：
+   * - 只计算“最新 1 篇”，只对这一篇文章读取 meta（用于拿到 title/date）
+   * - 排序尽量用文件名日期完成，避免对所有文章并发 fetch
    */
   async function renderPostLatestHtml() {
     const postDir = fileSystem?.post;
     if (!postDir || typeof postDir !== "object") return '<div class="contentHint">(no posts)</div>';
     const entries = Object.entries(postDir).filter(([k, v]) => typeof v === "string" && k.endsWith(".md") && k !== "index.md");
     if (entries.length === 0) return '<div class="contentHint">(no posts)</div>';
-    const metas = await Promise.all(
-      entries.map(async ([k, url]) => {
-        const meta = await getMarkdownMeta(url);
-        return { key: k, url, title: meta.title || stripFileExtension(k), date: meta.date };
-      })
-    );
-    metas.sort((a, b) => {
-      const ta = a.date instanceof Date ? a.date.getTime() : -Infinity;
-      const tb = b.date instanceof Date ? b.date.getTime() : -Infinity;
-      if (tb !== ta) return tb - ta;
-      return a.title.localeCompare(b.title);
-    });
-    const items = metas
-      .slice(0, 1)
-      .map((m) => {
-        const date = m.date ? formatIsoDate(m.date) : "";
-        const cmd = `cat /post/${stripFileExtension(m.key)}`;
-        return `<li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${m.title}</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li>`;
-      })
-      .join("");
-    return `<ul class="mdPostList">${items}</ul>`;
+    entries.sort(([aKey], [bKey]) => comparePostKeysDesc(aKey, bKey));
+    const [key, url] = entries[0];
+    const fallbackTitle = stripFileExtension(key);
+    const fallbackDate = parseDateFromPostKey(key);
+    let title = fallbackTitle;
+    let date = fallbackDate;
+    try {
+      const meta = await getMarkdownMeta(url);
+      if (meta?.title) title = meta.title;
+      if (meta?.date instanceof Date) date = formatIsoDate(meta.date) || date;
+    } catch {
+      title = fallbackTitle;
+      date = fallbackDate;
+    }
+    const cmd = `cat /post/${stripFileExtension(key)}`;
+    const item = `<li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${title}</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li>`;
+    return `<ul class="mdPostList">${item}</ul>`;
   }
 
+  /**
+   * 生成“全部文章列表”的 HTML（用于 /post/index.md 的 {{posts}}）。
+   *
+   * 性能策略（防止文章多时卡顿）：
+   * - 文章数量较少：读取 meta（标题/日期）得到更友好的展示
+   * - 文章数量很多：只用文件名生成列表（title=去扩展名，date=文件名中的 YYYY-MM-DD），点开文章时再加载正文
+   */
   async function renderAllPostsHtml() {
     const postDir = fileSystem?.post;
     if (!postDir || typeof postDir !== "object") return '<div class="contentHint">(no posts)</div>';
     const entries = Object.entries(postDir).filter(([k, v]) => typeof v === "string" && k.endsWith(".md") && k !== "index.md");
     if (entries.length === 0) return '<div class="contentHint">(no posts)</div>';
-    const metas = await Promise.all(
-      entries.map(async ([k, url]) => {
-        const meta = await getMarkdownMeta(url);
-        return { key: k, url, title: meta.title || stripFileExtension(k), date: meta.date };
-      })
-    );
-    metas.sort((a, b) => {
-      const ta = a.date instanceof Date ? a.date.getTime() : -Infinity;
-      const tb = b.date instanceof Date ? b.date.getTime() : -Infinity;
-      if (tb !== ta) return tb - ta;
-      return a.title.localeCompare(b.title);
-    });
-    const items = metas
-      .map((m) => {
-        const date = m.date ? formatIsoDate(m.date) : "";
-        const cmd = `cat /post/${stripFileExtension(m.key)}`;
-        return `<li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${m.title}</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li>`;
+    if (entries.length <= 12) {
+      const metas = await Promise.all(
+        entries.map(async ([k, url]) => {
+          const meta = await getMarkdownMeta(url);
+          return { key: k, url, title: meta.title || stripFileExtension(k), date: meta.date };
+        })
+      );
+      metas.sort((a, b) => {
+        const ta = a.date instanceof Date ? a.date.getTime() : -Infinity;
+        const tb = b.date instanceof Date ? b.date.getTime() : -Infinity;
+        if (tb !== ta) return tb - ta;
+        return a.title.localeCompare(b.title);
+      });
+      const items = metas
+        .map((m) => {
+          const date = m.date ? formatIsoDate(m.date) : "";
+          const cmd = `cat /post/${stripFileExtension(m.key)}`;
+          return `<li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${m.title}</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li>`;
+        })
+        .join("");
+      return `<ul class="mdPostList">${items}</ul>`;
+    }
+
+    entries.sort(([aKey], [bKey]) => comparePostKeysDesc(aKey, bKey));
+    const items = entries
+      .map(([k]) => {
+        const date = parseDateFromPostKey(k);
+        const title = stripFileExtension(k);
+        const cmd = `cat /post/${stripFileExtension(k)}`;
+        return `<li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${title}</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li>`;
       })
       .join("");
     return `<ul class="mdPostList">${items}</ul>`;

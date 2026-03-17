@@ -5,29 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Blog - Chambers Z.</title>
     <link rel="icon" type="image/png" href="./image/icon.png" />
+    <!--
+      主题样式表：
+      - 默认加载 styles.css（dark）
+      - 切换主题时由 modules/theme.js 动态替换 href 为 styles.light.css
+    -->
     <link id="themeStylesheet" rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <!--
+      页面整体布局：
+      - 上半区：左侧内容区 + 右侧评论区
+      - 下半区：交互式终端（命令入口）
+      交互约定：带 data-cmd 的元素可点击，点击等价于在终端输入该命令
+    -->
     <main class="layout">
       <section class="top">
+        <!-- 内容面板：文章渲染区（Markdown/HTML 都会注入到 #contentViewport） -->
         <section class="panel content" aria-label="Content Panel">
           <header class="contentHeader">
             <div class="contentHeaderRow">
               <h1 id="contentTitle" class="title">Hello World</h1>
+            <!-- 快捷命令按钮：返回上级目录（由 app.js 统一转发给终端执行） -->
             <code class="cmdButton" data-cmd="cd .." title="goback">cd ..</code>
             </div>
           </header>
 
           <div class="contentBody">
+            <!-- 内容渲染容器：modules/contentRenderer.js 会把文章 HTML 插入到这里 -->
             <div id="contentViewport" class="contentViewport"></div>
           </div>
         </section>
 
+        <!-- 评论面板：与当前内容页绑定（modules/comments.js 负责按页面过滤/加载/提交） -->
         <aside class="panel comments" aria-label="Comments Panel">
           <div class="commentsHeader">
             <div class="sectionTitle">Comments</div>
           </div>
           <div id="commentsList" class="commentsList" role="list"></div>
+          <!-- 评论输入器：输入内容会被转发为终端 say 命令，从而复用同一套评论提交逻辑 -->
           <div class="commentsComposer">
             <input
               id="commentsInput"
@@ -44,11 +60,14 @@
         </aside>
       </section>
 
+      <!-- 终端面板：用户交互的唯一命令入口（ls/cd/cat/say/theme/help/clear） -->
       <section class="panel terminal" aria-label="Interactive Terminal">
+        <!-- 输出区：终端所有打印内容都追加到这里（内部做最大行数裁剪避免卡顿） -->
         <div id="terminalOutput" class="terminalOutput" aria-live="polite"></div>
         <div class="terminalInputRow">
           <span class="prompt" id="promptText"></span>
           <span class="cursor" aria-hidden="true"></span>
+          <!-- 输入区：Enter 提交命令，↑↓ 浏览历史 -->
           <input
             id="terminalInput"
             class="terminalInput"
@@ -62,6 +81,7 @@
       </section>
     </main>
 
+    <!-- 入口脚本：负责装配渲染器/终端/评论/主题，并启动应用 -->
     <script type="module" src="./app.js"></script>
   </body>
 </html>

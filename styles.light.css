@@ -1,4 +1,9 @@
 :root {
+  /*
+    主题变量（light）：
+    - 与 styles.css 对应，保持同名变量，便于组件样式复用
+    - 该主题刻意让终端区更“浅色终端”，但仍保留明显的终端分区
+  */
   --bg: #ffffff;
   --panel: #f3f3f3;
   --panel2: #ffffff;
@@ -11,6 +16,7 @@
   --terminalGreen: #0b6a0b;
 }
 
+/* 全局基础：与 dark 主题保持一致，避免主题切换造成布局跳变 */
 * {
   box-sizing: border-box;
 }
@@ -21,6 +27,7 @@ body {
 }
 
 body {
+  /* 页面基底：仅颜色变量变化，布局与字体保持一致 */
   margin: 0;
   background: var(--bg);
   color: var(--text);
@@ -28,6 +35,7 @@ body {
     "PingFang SC", "Hiragino Sans GB";
 }
 
+/* 主布局：上内容区 + 下终端区 */
 .layout {
   height: 100vh;
   display: flex;
@@ -36,6 +44,7 @@ body {
   gap: 12px;
 }
 
+/* 上半区：内容（左）+ 评论（右） */
 .top {
   flex: 3;
   display: flex;
@@ -271,6 +280,7 @@ body {
   padding: 0;
 }
 
+/* 文章列表（Latest / All Posts） */
 .mdPostList {
   list-style: none;
   padding: 0;
@@ -363,6 +373,7 @@ body {
   color: #7a3e9d;
 }
 
+/* 评论区：列表 + 空状态 + 输入器 */
 .commentsHeader {
   padding: 14px 14px 10px;
   border-bottom: 1px solid var(--border);
@@ -463,6 +474,7 @@ body {
   padding: 10px;
 }
 
+/* 终端输出区：滚动、换行规则与高亮色 */
 .terminalOutput {
   flex: 1;
   overflow: auto;
@@ -542,6 +554,7 @@ body {
   }
 }
 
+/* 响应式：窄屏时将上半区改为上下堆叠 */
 @media (max-width: 980px) {
   .top {
     flex-direction: column;

@@ -1,4 +1,9 @@
 :root {
+  /*
+    主题变量（dark）：
+    - 所有颜色都通过 CSS 变量集中管理，组件样式尽量只引用变量
+    - 切换主题时由 modules/theme.js 切换样式表到 styles.light.css
+  */
   --bg: #1e1e1e;
   --panel: #252526;
   --panel2: #1f1f1f;
@@ -11,6 +16,7 @@
   --terminalGreen: #7cfc98;
 }
 
+/* 全局基础：更稳定的盒模型与全高布局 */
 * {
   box-sizing: border-box;
 }
@@ -21,6 +27,7 @@ body {
 }
 
 body {
+  /* 页面基底：背景色/文字色/字体族统一从这里开始 */
   margin: 0;
   background: var(--bg);
   color: var(--text);
@@ -28,6 +35,7 @@ body {
     "PingFang SC", "Hiragino Sans GB";
 }
 
+/* 主布局：上内容区 + 下终端区 */
 .layout {
   height: 100vh;
   display: flex;
@@ -36,6 +44,7 @@ body {
   gap: 12px;
 }
 
+/* 上半区：内容（左）+ 评论（右） */
 .top {
   flex: 3;
   display: flex;
@@ -43,6 +52,7 @@ body {
   min-height: 0;
 }
 
+/* 面板容器：内容/评论/终端共用的卡片外壳 */
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -50,12 +60,14 @@ body {
   min-height: 0;
 }
 
+/* 内容面板：标题区 + 内容滚动区 */
 .content {
   flex: 4;
   display: flex;
   flex-direction: column;
 }
 
+/* 评论面板：标题区 + 列表滚动区 + 输入器 */
 .comments {
   flex: 1;
   display: flex;
@@ -63,6 +75,7 @@ body {
   background: var(--panel);
 }
 
+/* 终端面板：黑底等宽字体，强调“终端感” */
 .terminal {
   flex: 1;
   background: var(--terminalBg);
@@ -75,6 +88,7 @@ body {
   color: var(--terminalText);
 }
 
+/* 内容标题栏：展示当前页面标题与快捷命令入口 */
 .contentHeader {
   padding: 18px 18px 10px;
   border-bottom: 1px solid var(--border);
@@ -88,6 +102,7 @@ body {
   gap: 8px;
 }
 
+/* 标题右侧/下方的导航按钮样式（本版本多数被 cmdButton 统一替代） */
 .contentHeaderNav {
   list-style: none;
   padding: 0;
@@ -126,6 +141,7 @@ body {
   letter-spacing: 0.4px;
 }
 
+/* 内容滚动容器（文章阅读区） */
 .contentBody {
   padding: 14px 18px;
   flex: 1;
@@ -133,6 +149,7 @@ body {
   overscroll-behavior: contain;
 }
 
+/* 内容切换过渡：渲染新文章时做淡入淡出/位移动画 */
 .contentViewport {
   transition: opacity 180ms ease, transform 180ms ease;
   opacity: 1;
@@ -144,6 +161,7 @@ body {
   transform: translateY(6px);
 }
 
+/* 内容加载失败/提示文案 */
 .contentHint {
   color: var(--muted);
   line-height: 1.65;
@@ -156,6 +174,7 @@ body {
   background: var(--panel2);
 }
 
+/* Markdown 文章容器：限制行宽，提升可读性 */
 .mdArticle {
   max-width: 76ch;
 }
@@ -171,6 +190,7 @@ body {
   color: var(--muted);
 }
 
+/* Markdown 正文排版 */
 .mdContent {
   line-height: 1.65;
 }
@@ -183,6 +203,7 @@ body {
   color: var(--accent);
 }
 
+/* 社交链接：胶囊按钮 + 图标 */
 .mdSocialLinks {
   display: flex;
   flex-wrap: wrap;
@@ -230,6 +251,7 @@ body {
   line-height: 1.2;
 }
 
+/* 行内 code：用于命令/路径展示 */
 .mdContent code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.95em;
@@ -239,6 +261,7 @@ body {
   padding: 1px 6px;
 }
 
+/* 可点击命令按钮：统一 data-cmd 的视觉入口（内容区/标题栏/评论区按钮复用） */
 .cmdButton {
   display: inline-flex;
   align-items: center;
@@ -257,6 +280,7 @@ body {
   background: rgba(86, 156, 214, 0.08);
 }
 
+/* 代码块：用于文章中的多行代码示例 */
 .mdContent pre {
   overflow: auto;
   background: #1b1b1c;
@@ -271,6 +295,7 @@ body {
   padding: 0;
 }
 
+/* 文章列表（Latest / All Posts） */
 .mdPostList {
   list-style: none;
   padding: 0;
@@ -313,6 +338,7 @@ body {
   flex: 0 0 auto;
 }
 
+/* 小节标题（Comments、Command Cheat Sheet 等） */
 .sectionTitle {
   font-size: 12px;
   letter-spacing: 0.2px;
@@ -321,6 +347,7 @@ body {
   margin-bottom: 10px;
 }
 
+/* 表格容器：用于命令速查表，允许横向滚动 */
 .tableWrap {
   overflow: auto;
   border: 1px solid var(--border);
@@ -363,6 +390,7 @@ body {
   color: #c586c0;
 }
 
+/* 评论区：列表 + 空状态 + 输入器 */
 .commentsHeader {
   padding: 14px 14px 10px;
   border-bottom: 1px solid var(--border);
@@ -463,6 +491,7 @@ body {
   padding: 10px;
 }
 
+/* 终端输出区：滚动、换行规则与高亮色 */
 .terminalOutput {
   flex: 1;
   overflow: auto;
@@ -494,6 +523,7 @@ body {
   color: var(--accent);
 }
 
+/* 终端输入行：prompt + 光标 + 输入框 */
 .terminalInputRow {
   display: flex;
   align-items: center;
@@ -523,6 +553,7 @@ body {
   padding: 2px 0;
 }
 
+/* 光标：模拟终端闪烁光标（输入框本身隐藏 caret） */
 .cursor {
   width: 10px;
   height: 18px;
@@ -542,6 +573,7 @@ body {
   }
 }
 
+/* 响应式：窄屏时将上半区改为上下堆叠 */
 @media (max-width: 980px) {
   .top {
     flex-direction: column;

@@ -9,6 +9,17 @@ import { formatDate, randomNickname, sleep } from "./utils.js";
  * 目的：把评论 DOM 拼装逻辑从主入口/终端逻辑中剥离，提升复用与可读性。
  */
 
+/**
+ * GitHub 配置（评论存储后端）。
+ *
+ * 方案概述：
+ * - 使用一个 Issue 作为“评论容器”，所有评论都写入该 Issue 的 comments。
+ * - 每条 comment body 里包含一个带 marker 的 JSON（page/name/text/date），从而实现“按页面过滤”。
+ *
+ * 安全提示：
+ * - 浏览器端无法真正安全地保存 token；放在前端的 token 都可能被获取。
+ * - 该方案更适合个人站点的轻量留言板，不适合承载高权限或敏感数据。
+ */
 const GITHUB = {
   owner: "2dog-Z",
   repo: "2dog-Z.github.io",
@@ -24,6 +35,17 @@ const GITHUB = {
   "6xhFHOgW4IFJ5ODJ1KNWrsC",
   issueTitle: "blog_comments",
 };
+
+/**
+ * 获取评论模块正在使用的仓库信息。
+ * 用途：让其它模块（例如 post 自动发现）复用同一份仓库配置，避免多处维护/不一致。
+ */
+export function getCommentsGitHubRepo() {
+  const owner = String(GITHUB.owner ?? "").trim();
+  const repo = String(GITHUB.repo ?? "").trim();
+  if (!owner || !repo || owner === "REPLACE_ME" || repo === "REPLACE_ME") return null;
+  return { owner, repo };
+}
 
 const COMMENT_MARKER = "TDPB_COMMENT/v1";
 const CACHE_KEY = "tdpb_comments_cache_v1";

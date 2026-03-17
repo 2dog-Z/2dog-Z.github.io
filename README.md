@@ -17,6 +17,7 @@ Version 5 的主要目标：
 - 评论从“演示数据”升级为“可持久化的真实数据”，并与页面路径绑定（按文章/页面分流）
 - 终端输出做上限裁剪，避免长时间使用导致 DOM 无限增长
 - 统一并强化 `data-cmd` 的“点击即命令”交互风格（含顶部、内容区、评论区）
+- post 文章自动发现：访问时增量同步 `post/*.md`，自动补全文件树映射，并通过缓存避免首屏卡顿
 
 关键入口与模块（V5）：
 
@@ -49,6 +50,8 @@ Version 5 的主要目标：
 | 评论交互 | 仅终端 `say` | 终端 `say` + 评论区输入框一键转发 `say`（见 [index.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.html)） |
 | 终端输出 | 无上限裁剪（长期使用可能堆积 DOM） | 增加最大行数与裁剪策略（见 [terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/terminal.js) 与 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)） |
 | 站点资产 | 无 favicon | 增加 favicon 与 icon（见 [index.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.html) 与 `./image/icon.png`） |
+| post 文件树映射维护 | 新增文章需要手动更新 `FILE_SYSTEM.post` | 启动时从缓存合并；空闲时后台同步 `post/*.md` 并只增量追加（见 [app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/app.js)） |
+| 列表渲染性能 | 列表依赖读取 meta，文章多时更易产生并发 fetch | Latest 仅读取最新 1 篇 meta；All Posts 超阈值时仅用文件名生成列表（见 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/contentRenderer.js)） |
 
 ## 4. 目录结构演进
 
@@ -157,6 +160,18 @@ V5 继续强化 `data-cmd`：
 - 首页 Posts 标题旁注入 `cd /post` 快捷入口（见 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/contentRenderer.js)）
 - 评论区输入框点击/回车转发到终端执行 `say`（见 [comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/comments.js)）
 
+### 5.6 post 自动发现与“首屏不阻塞”的增量同步
+
+动机：静态站点没法在浏览器里“扫描本地目录”，但我们仍希望发布到 GitHub Pages 后，新增文章无需手工维护 `FILE_SYSTEM.post`，同时必须避免用户首次打开页面卡顿。
+
+V5 采用的策略：
+
+- 启动阶段：只读取 localStorage 中缓存的文章文件名列表，并合并进 `FILE_SYSTEM.post`（不发网络请求，保证首屏不阻塞）
+- 空闲阶段：使用 GitHub Contents API 拉取 `/post` 下的文件列表，配合 `ETag` 做条件请求；只把“新增的 `.md` 文件名”增量追加到 `FILE_SYSTEM.post`，不会重建整棵树
+- 仓库配置复用：post 自动发现直接复用评论模块的仓库配置，避免多处维护产生不一致（见 [comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/comments.js) 导出的 `getCommentsGitHubRepo`）
+
+实现入口见 [app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/app.js)。
+
 ## 6. 核心流程（V5）
 
 ### 6.1 页面启动流程
@@ -183,13 +198,14 @@ V5 的评论流程是“页面驱动”的：
 - `file://` 限制仍存在：内容与模板依赖 `fetch`，建议使用本地静态服务器或部署到 Pages
 - GitHub 写入需要鉴权：浏览器侧无法真正“安全地保存 token”，任何放在前端的 token 都可能被获取；该方案更适合作为“个人站点的轻量留言板”，不适合承载敏感权限
 - GitHub API 受速率限制：频繁刷新/高访问量会触发 rate limit，缓存能缓解但无法消除
-- 仍是“显式虚拟 FS”：新增文章需把文件加入 `FILE_SYSTEM`（见 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)）
+- post 自动发现的边界：浏览器侧无法扫描“本地未发布的目录文件”；自动发现以远端 GitHub 仓库 `/post` 目录为准
+- 显式虚拟 FS 仍存在：除 post 自动发现的增量补全外，其它目录/文件仍由 `FILE_SYSTEM` 控制（见 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)）
 
 ## 8. 扩展指南（以 V5 为基准）
 
 ### 8.1 新增一篇 Markdown 文章，并可在终端打开
 
-1. 在 `./post/` 新增 `YYYY-MM-DD-your-title.md`
+1. 在 `./post/` 新增 `YYYY-MM-DD-your-title.md`（推荐用日期前缀，便于列表排序与 Latest 推断）
 2. 建议写入 front matter：
 
 ```md
@@ -199,8 +215,12 @@ date: 2026-03-17
 ---
 ```
 
-3. 在 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js) 的 `FILE_SYSTEM.post` 增加映射
+3. 部署/推送到 GitHub 仓库后：站点会在空闲时自动发现该文件并增量加入 `FILE_SYSTEM.post`（无需手工改 `constants.js`）
 4. 终端执行 `cd /post`，然后 `cat /post/YYYY-MM-DD-your-title`（可省略扩展名）
+
+本地预览说明：
+
+- 如果你只是本地新增了 md 但还没推送到远端仓库，自动发现不会看到这篇文章；此时可临时在 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js) 的 `FILE_SYSTEM.post` 手动加一条映射，用于本地调试，发布后可不再保留
 
 ### 8.2 调整首页展示
 
@@ -217,8 +237,4 @@ date: 2026-03-17
 
 ## 9. 下一步迭代建议（面向 Version 6+）
 
-- 评论“免 token”方案：使用 GitHub Discussions + OAuth/Serverless 中转，或使用第三方无后端评论组件
-- 内容系统增强：tags/分类页、站内搜索、RSS、相关文章推荐
-- Markdown 能力扩展：图片、表格、任务列表（配合安全策略与样式）
-- FILE_SYSTEM 自动化：用构建脚本或 GitHub Actions 生成目录索引，减少手工维护
 

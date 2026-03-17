@@ -52,6 +52,14 @@ export function createTerminal(options = {}) {
   function scrollToBottom() {
     output.scrollTop = output.scrollHeight;
   }
+
+  /**
+   * 当终端输出行数过多时裁剪顶部内容。
+   * 背景：终端输出是不断追加 DOM 节点的；不限制会导致内存增长、布局计算变慢、页面卡顿。
+   * 策略：
+   * - 达到 TERMINAL_MAX_LINES 时，一次性裁剪 TERMINAL_TRIM_TOP_LINES 行（而不是每次删 1 行）
+   * - 既保留最近上下文，又减少频繁 DOM 操作造成的抖动
+   */
   function trimOutputOnOverflow() {
     const lines = output.querySelectorAll(".terminalLine");
     if (lines.length >= TERMINAL_MAX_LINES) {
