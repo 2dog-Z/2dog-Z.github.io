@@ -17,7 +17,7 @@ import {
   sameCommentsForAdmin,
   syncCommentsForAdmin,
 } from "../modules/comments.js";
-import { githubRequest, sleep } from "../modules/utils.js";
+import { fetchGithubPostMdList, githubRequest, sleep } from "../modules/utils.js";
 
 /**
  * 收集虚拟文件系统里的 Markdown 路径列表。
@@ -567,12 +567,34 @@ function createFilesManagementView() {
   let hintTimer = 0;
   let currentEntries = [];
 
+  /**
+   * 设置某个动作按钮的可用性。
+   * 功能：通过 pointerEvents/opacity 统一控制交互态。
+   * 目的：避免各处重复写禁用样式逻辑，保持交互反馈一致。
+   */
   function setActionEnabled(el, enabled) {
     el.style.pointerEvents = enabled ? "auto" : "none";
     el.style.opacity = enabled ? "1" : "0.6";
   }
 
+  /**
+   * 根据“当前目录 + 选中项 + 忙碌态 + 权限”刷新三个按钮状态。
+   *
+   * 规则：
+   * - root 的非三大入口子目录（root/...）：upload/download/delete 全禁用
+   * - download：仅允许单选文件
+   * - delete：仅允许选中的全是文件，且全部满足当前目录的写入权限
+   *
+   * 目的：让 UI 的可用性与后端权限保持一致，减少“点了才报错”的挫败感。
+   */
   function setActionsEnabled() {
+    if (isRestrictedRootSubdir(currentKey)) {
+      setActionEnabled(uploadBtn, false);
+      setActionEnabled(downloadBtn, false);
+      setActionEnabled(deleteBtn, false);
+      return;
+    }
+
     const byId = new Map(currentEntries.map((x) => [x.id, x]));
     const selected = Array.from(selectedIds).map((id) => byId.get(id)).filter(Boolean);
     const selectedFiles = selected.filter((x) => x.kind === "file");
@@ -585,6 +607,7 @@ function createFilesManagementView() {
       selectedFiles.length === selected.length &&
       selectedFiles.every((x) => canWriteFileAtKey(currentKey, x.name));
 
+    setActionEnabled(uploadBtn, allow);
     setActionEnabled(downloadBtn, canDownload);
     setActionEnabled(deleteBtn, canDelete);
   }
@@ -603,6 +626,18 @@ function createFilesManagementView() {
     }, ttlMs);
   }
 
+  /**
+   * 规范化目录 key（管理端内部路径）。
+   *
+   * 输入示例：
+   * - "post"、"aboutme"、"image"、"root"
+   * - "root/templates"
+   * - "image/icons"
+   *
+   * 输出：保证 base 只会落在 root/aboutme/post/image 四类之一。
+   *
+   * 目的：让 UI 状态与目录解析在各种输入（手动拼接/下拉切换/点击目录）下都稳定一致。
+   */
   function normalizeDirKey(key) {
     const k = String(key ?? "").trim();
     if (!k) return "root";
@@ -613,6 +648,11 @@ function createFilesManagementView() {
     return [base, ...parts.slice(1)].join("/");
   }
 
+  /**
+   * 生成目录 key 在下拉框里的展示文案。
+   * 规则：取路径最后一段作为 label（root 则显示 root）。
+   * 目的：目录层级较深时，下拉框仍保持简洁可读。
+   */
   function selectLabelForKey(key) {
     const parts = String(key ?? "")
       .split("/")
@@ -636,6 +676,10 @@ function createFilesManagementView() {
     select.appendChild(opt);
   }
 
+  /**
+   * 把仓库路径拆段并逐段 encodeURIComponent。
+   * 目的：支持包含空格/中文等字符的文件/目录名，避免拼 URL 时路径被误解析。
+   */
   function encodePath(path) {
     const p = String(path ?? "")
       .replace(/^\/+/, "")
@@ -648,6 +692,11 @@ function createFilesManagementView() {
       .join("/");
   }
 
+  /**
+   * 构建 GitHub Contents API 的 URL（不经由 Worker）。
+   * 说明：实际请求会再由 githubRequest() 重写到 Worker（/gh 前缀）。
+   * 目的：让业务逻辑只关心 repoPath，并统一处理 owner/repo 的拼装。
+   */
   function contentsApiUrl(path) {
     const repoPath = String(path ?? "")
       .replace(/^\/+/, "")
@@ -689,18 +738,48 @@ function createFilesManagementView() {
     return out;
   }
 
+  /**
+   * 获取目录 key 的顶层分类（root/aboutme/post/image）。
+   * 目的：把“UI 目录层级”映射到不同的权限策略与真实仓库路径。
+   */
   function baseOfKey(key) {
     const k = normalizeDirKey(key);
     const parts = k.split("/").filter(Boolean);
     return parts[0] || "root";
   }
 
+  /**
+   * 获取目录 key 在顶层分类之后的剩余路径段。
+   * 例：root/templates -> ["templates"]，image/icons -> ["icons"]。
+   * 目的：统一用于“构建仓库路径/定位管理端缓存树 node/生成下一层 key”。
+   */
   function restPartsOfKey(key) {
     const k = normalizeDirKey(key);
     const parts = k.split("/").filter(Boolean);
     return parts.slice(1);
   }
 
+  /**
+   * root 的子目录限制（按需求：非 post/aboutme/image 三个入口的 root/... 禁止上传/下载/删除）。
+   * 目的：避免管理端误操作站点根目录下其它静态资源/模板等非 markdown 内容。
+   */
+  function isRestrictedRootSubdir(key) {
+    const base = baseOfKey(key);
+    const rest = restPartsOfKey(key);
+    return base === "root" && rest.length > 0;
+  }
+
+  /**
+   * 将“管理端目录 key”映射为“仓库真实目录路径”。
+   *
+   * 映射：
+   * - root[/x/y]   -> "" / "x/y"
+   * - image[/x/y]  -> "image" / "image/x/y"
+   * - post         -> "post"
+   * - aboutme      -> "aboutme"
+   *
+   * 目的：把 UI 的目录体系与仓库 Contents API 路径对齐。
+   */
   function repoDirForKey(key) {
     const base = baseOfKey(key);
     const rest = restPartsOfKey(key);
@@ -711,6 +790,15 @@ function createFilesManagementView() {
     return "";
   }
 
+  /**
+   * 定位当前目录对应的“虚拟文件系统节点”。
+   *
+   * 策略：
+   * - aboutme/post：复用主站 FILE_SYSTEM 的目录对象
+   * - root/image：使用管理端专用缓存树（ADMIN_ROOT_FS / ADMIN_IMAGE_FS），并在进入子目录时按需补齐节点
+   *
+   * 目的：让 UI 渲染与上传/删除能在一个统一的数据结构上工作（目录=object，文件=string）。
+   */
   function nodeForKey(key) {
     const base = baseOfKey(key);
     const rest = restPartsOfKey(key);
@@ -800,6 +888,14 @@ function createFilesManagementView() {
     setActionsEnabled();
   }
 
+  /**
+   * 从“点击目录项”的条目推导下一个目录 key。
+   *
+   * 特殊规则：
+   * - 在 root 顶层点击 post/aboutme/image：直接跳转到对应文件树（不进入 root/post 这类中间态）
+   *
+   * 目的：匹配管理端的 VFS 设计（root 作为站点根入口，三大目录是独立文件树）。
+   */
   function buildNextKeyFromDirClick(dirItem) {
     const base = baseOfKey(currentKey);
     const rest = restPartsOfKey(currentKey);
@@ -814,12 +910,21 @@ function createFilesManagementView() {
     return base;
   }
 
+  /**
+   * 拉取 GitHub Contents API 的目录列表并写入到某个 VFS 节点。
+   *
+   * 注意：
+   * - 该函数只负责“索引目录”（写入子目录名/文件名），不拉取具体文件内容
+   * - 配合 loadedNodes 做缓存：同一 node 只加载一次，避免频繁刷新产生速率压力
+   *
+   * 目的：实现 root/image 的“按需展开”文件树。
+   */
   async function loadDirIntoFsNode(dirRepoPath, node) {
     if (!owner || !repoName) throw new Error("GitHub repo not configured");
     if (!node || typeof node !== "object") return;
     if (loadedNodes.has(node)) return;
 
-    const res = await githubRequest(contentsApiUrl(dirRepoPath), { method: "GET" });
+    const res = await githubRequest(contentsApiUrl(dirRepoPath), { method: "GET", cacheBust: true });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new Error(`Load dir failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
@@ -841,6 +946,10 @@ function createFilesManagementView() {
     loadedNodes.add(node);
   }
 
+  /**
+   * 确保某个目录 key 对应的 VFS 节点已完成索引。
+   * 说明：仅 root/image 需要网络索引；aboutme/post 的列表由其它逻辑生成。
+   */
   async function ensureFsReadyForKey(key) {
     const base = baseOfKey(key);
     const repoDir = repoDirForKey(key);
@@ -852,10 +961,23 @@ function createFilesManagementView() {
     return;
   }
 
+  /**
+   * 将当前渲染条目数组转换为 {id -> entry} 的 map。
+   * 目的：统一在下载/删除等动作中通过 selectedIds 快速定位条目元数据。
+   */
   function entryByIdMap() {
     return new Map(currentEntries.map((x) => [x.id, x]));
   }
 
+  /**
+   * 判断在某个目录下是否允许写入指定文件名（上传/覆盖/删除）。
+   *
+   * 权限：
+   * - root/aboutme/post：仅允许 *.md
+   * - image：允许任意文件
+   *
+   * 目的：在 UI 与实际请求两层都做硬约束，避免误操作静态资源。
+   */
   function canWriteFileAtKey(dirKey, filename) {
     const base = baseOfKey(dirKey);
     const name = String(filename ?? "").trim();
@@ -866,6 +988,10 @@ function createFilesManagementView() {
     return false;
   }
 
+  /**
+   * 计算“上传文件”最终应写入的仓库路径。
+   * 目的：把管理端目录 key（含子目录）映射到 Contents API 需要的 repoPath。
+   */
   function fileRepoPathForUpload(dirKey, filename) {
     const base = baseOfKey(dirKey);
     const rest = restPartsOfKey(dirKey);
@@ -878,6 +1004,10 @@ function createFilesManagementView() {
     return "";
   }
 
+  /**
+   * 将字节数组编码为 Base64。
+   * 目的：用于 GitHub Contents API 的 PUT（content 必须是 base64）。
+   */
   function bytesToBase64(bytes) {
     const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     const chunkSize = 0x8000;
@@ -889,6 +1019,10 @@ function createFilesManagementView() {
     return btoa(binary);
   }
 
+  /**
+   * 将 Base64 解码为字节数组。
+   * 目的：用于 GitHub Contents API GET 文件内容（content=base64）后的下载。
+   */
   function base64ToBytes(b64) {
     const raw = String(b64 ?? "").replace(/\s+/g, "");
     const binary = atob(raw);
@@ -897,8 +1031,14 @@ function createFilesManagementView() {
     return out;
   }
 
+  /**
+   * 读取单个文件的 GitHub 内容与 sha。
+   * 目的：
+   * - 下载：读取 base64 内容
+   * - 删除/覆盖：先拿到 sha，避免 DELETE/PUT 失败
+   */
   async function getFileFromGitHub(repoPath) {
-    const res = await githubRequest(contentsApiUrl(repoPath), { method: "GET" });
+    const res = await githubRequest(contentsApiUrl(repoPath), { method: "GET", cacheBust: true });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       const err = new Error(`Get file failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
@@ -914,6 +1054,10 @@ function createFilesManagementView() {
     return { sha, content, encoding };
   }
 
+  /**
+   * 上传/覆盖文件（GitHub Contents API PUT）。
+   * 说明：当 sha 存在时表示覆盖，否则创建新文件。
+   */
   async function putFileToGitHub(repoPath, contentBase64, options = {}) {
     const message = String(options.message ?? `admin upload ${repoPath}`).trim() || `admin upload ${repoPath}`;
     const sha = String(options.sha ?? "").trim();
@@ -921,6 +1065,7 @@ function createFilesManagementView() {
     if (sha) payload.sha = sha;
     const res = await githubRequest(contentsApiUrl(repoPath), {
       method: "PUT",
+      cacheBust: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -931,11 +1076,16 @@ function createFilesManagementView() {
     return await res.json().catch(() => null);
   }
 
+  /**
+   * 删除文件（GitHub Contents API DELETE）。
+   * 注意：必须携带 sha（由 getFileFromGitHub() 获取），否则会被 GitHub 拒绝。
+   */
   async function deleteFileOnGitHub(repoPath, sha, options = {}) {
     const message = String(options.message ?? `admin delete ${repoPath}`).trim() || `admin delete ${repoPath}`;
     const payload = { message, sha: String(sha ?? "") };
     const res = await githubRequest(contentsApiUrl(repoPath), {
       method: "DELETE",
+      cacheBust: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -952,23 +1102,21 @@ function createFilesManagementView() {
     if (!node || typeof node !== "object") return [];
 
     if (base === "post") {
+      /**
+       * post 目录索引策略（管理端）：
+       * - 只依赖一次 GET /contents/post 获取当前文件列表；
+       * - 不做“增量合并/本地缓存”逻辑，避免与主站入口的自动发现逻辑重复。
+       *
+       * 目的：
+       * - 后台文件管理的列表应当尽量“以仓库当前状态为准”
+       * - 保持实现简单，降低重复维护成本
+       */
       if (!owner || !repoName) return collectEntriesFromNode(node, "post");
-      try {
-        const res = await githubRequest(contentsApiUrl("post"), { method: "GET" });
-        if (res.ok) {
-          const data = await res.json().catch(() => null);
-          const items = Array.isArray(data) ? data : [];
-          for (const it of items) {
-            const name = String(it?.name ?? "").trim();
-            const type = String(it?.type ?? "").trim();
-            if (!name || type !== "file") continue;
-            if (!name.toLowerCase().endsWith(".md")) continue;
-            node[name] = `./post/${name}`;
-          }
-        }
-      } catch {
-        return collectEntriesFromNode(node, "post");
-      }
+      const res = await fetchGithubPostMdList({ owner, repo: repoName });
+      const names = Array.isArray(res?.names) ? res.names : [];
+      for (const k of Object.keys(node)) delete node[k];
+      for (const name of names) node[name] = `./post/${name}`;
+
       return collectEntriesFromNode(node, "post");
     }
 
@@ -1023,6 +1171,7 @@ function createFilesManagementView() {
    */
   function downloadSelected() {
     void (async () => {
+      if (isRestrictedRootSubdir(currentKey)) return;
       if (isBusy) return;
       const ids = Array.from(selectedIds);
       if (ids.length !== 1) return;
@@ -1063,6 +1212,7 @@ function createFilesManagementView() {
    */
   function deleteSelected() {
     void (async () => {
+      if (isRestrictedRootSubdir(currentKey)) return;
       if (isDeleting || isBusy) return;
       if (selectedIds.size === 0) return;
 
@@ -1120,6 +1270,7 @@ function createFilesManagementView() {
    * - 选择后执行 PUT 写入 GitHub
    */
   function uploadInCurrentDir() {
+    if (isRestrictedRootSubdir(currentKey)) return;
     uploadInput.value = "";
     const base = baseOfKey(currentKey);
     uploadInput.accept = base === "image" ? "" : ".md";
