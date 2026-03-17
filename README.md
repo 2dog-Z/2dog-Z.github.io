@@ -109,6 +109,7 @@ V6 新增 `githubApiUrlViaWorker()`（见 [utils.js](/modules/utils.js)）：
 
 - 评论读写：集中在 [comments.js](/modules/comments.js) 的 `githubRequestJson()`
 - post 自动发现（Contents API）：集中在 [app.js](/app.js) 的 `fetchGithubPostMdList()`
+- 评论 UI：初次加载先显示 `Loading Comments…`；若 3 秒仍无评论渲染再显示空态文案（见 [comments.js](/modules/comments.js) 的 `setupComments()` / `loadForPage()`）
 
 它们共同点：
 

@@ -397,9 +397,11 @@ export function setupComments() {
   const list = document.getElementById("commentsList");
   const composerInput = document.getElementById("commentsInput");
   const composerBtn = document.getElementById("commentsSayBtn");
+  const loadingText = "Loading Comments…";
+  const emptyText = "No comments yet. Say something!";
   const emptyState = document.createElement("div");
   emptyState.className = "commentsEmpty";
-  emptyState.textContent = "No comments yet. Say something!";
+  emptyState.textContent = loadingText;
   emptyState.hidden = false;
   list.replaceChildren(emptyState);
   const sessionNickname = randomNickname();
@@ -461,12 +463,20 @@ export function setupComments() {
     return true;
   }
 
+  /**
+   * 按页面 key 加载并渲染评论。
+   * 功能：
+   * - 切页时先展示本地缓存（即时反馈），再同步 GitHub 并按需刷新
+   * - 初次加载先显示 Loading 文案；若 3 秒仍未渲染出任何评论，再回退为空态文案
+   * 目的：避免“加载中却提示无评论”的误导，同时保持切页体验稳定。
+   */
   async function loadForPage(pageKey) {
     const seq = (loadSeq += 1);
     if (!pageKey) {
       list.classList.add("switching");
       await sleep(180);
       if (seq !== loadSeq) return;
+      emptyState.textContent = emptyText;
       clearList();
       window.requestAnimationFrame(() => {
         list.classList.remove("switching");
@@ -476,7 +486,14 @@ export function setupComments() {
     list.classList.add("switching");
     await sleep(180);
     if (seq !== loadSeq) return;
+    emptyState.textContent = loadingText;
     emptyState.hidden = false;
+    window.setTimeout(() => {
+      if (seq !== loadSeq) return;
+      if (list.querySelector(".commentItem")) return;
+      emptyState.textContent = emptyText;
+      emptyState.hidden = false;
+    }, 3000);
     const before = getPageComments(pageKey);
     renderComments(before);
     window.requestAnimationFrame(() => {
@@ -486,6 +503,7 @@ export function setupComments() {
       await syncStoredComments({ force: false, allowFullScan: true });
       if (seq !== loadSeq) return;
       const after = getPageComments(pageKey);
+      if (after.length === 0) emptyState.textContent = emptyText;
       if (!sameComments(before, after)) renderComments(after);
     } catch (e) {
       if (seq !== loadSeq) return;
