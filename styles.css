@@ -203,6 +203,50 @@ body {
   color: var(--accent);
 }
 
+.mdContent img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  margin: 12px 0;
+}
+
+.mdContent table.mdTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.mdContent table.mdTable th,
+.mdContent table.mdTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mdContent table.mdTable thead th {
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 700;
+}
+
+.mdContent table.mdTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mdTask {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mdTask input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
 /* 社交链接：胶囊按钮 + 图标 */
 .mdSocialLinks {
   display: flex;

@@ -12,6 +12,16 @@ date: 2026-03-15
 - Front matter：title / date
 - Inline：**bold**、*italic*、`inline code`
 - Link：[OpenAI](https://openai.com/)
+- Image：![icon](/image/icon.png)
+- Task List：
+  - [ ] pending
+  - [x] completed
+- Table：
+
+| Item | Value |
+| --- | ---: |
+| Posts | 3 |
+| Theme | 2 |
 
 ## Code
 
@@ -20,4 +30,3 @@ export function hello(name) {
   return `Hello ${name}`;
 }
 ```
-

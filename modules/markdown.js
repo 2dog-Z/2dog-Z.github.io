@@ -44,32 +44,17 @@ function normalizeSiteHref(href) {
   if (s.startsWith("mailto:")) return s;
   if (s.startsWith("./") || s.startsWith("../")) return s;
 
-  const basePath = new URL(".", window.location.href).pathname;
-
-  if (s.startsWith("/")) {
-    if (basePath !== "/" && s.startsWith(basePath)) {
-      const rest = s.slice(basePath.length).replace(/^\/+/, "");
-      return rest ? `./${rest}` : "./";
-    }
-    return `.${s}`;
-  }
-
   if (/^https?:\/\//i.test(s)) {
     try {
       const u = new URL(s);
       if (u.origin !== window.location.origin) return s;
-      const p = u.pathname;
-      if (basePath !== "/" && p.startsWith(basePath)) {
-        const rest = p.slice(basePath.length).replace(/^\/+/, "");
-        const rel = rest ? `./${rest}` : "./";
-        return `${rel}${u.search}${u.hash}`;
-      }
-      return `.${p}${u.search}${u.hash}`;
+      return `${u.pathname}${u.search}${u.hash}`;
     } catch {
       return s;
     }
   }
 
+  if (s.startsWith("/")) return s;
   return s;
 }
 
@@ -87,12 +72,110 @@ function isSafeLink(href) {
 }
 
 /**
+ * 解析“图片尺寸/缩放”语法中的数值。
+ *
+ * 支持：
+ * - 分数：1/3 -> 33.3333%
+ * - 百分比：33% -> 33%
+ * - 像素：120px -> 120px
+ *
+ * 目的：
+ * - 为图片语法提供一个简单、可控的尺寸表达方式；
+ * - 严格限制可输出的值范围，避免把任意字符串拼进 style 导致注入风险。
+ */
+function parseImageSizeValue(input) {
+  const s = String(input ?? "").trim();
+  if (!s) return "";
+
+  const frac = s.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+  if (frac) {
+    const a = Number(frac[1]);
+    const b = Number(frac[2]);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b === 0) return "";
+    const pct = (a / b) * 100;
+    if (!Number.isFinite(pct) || pct <= 0) return "";
+    return `${pct.toFixed(6).replace(/\.?0+$/, "")}%`;
+  }
+
+  const percent = s.match(/^(\d+(?:\.\d+)?)%$/);
+  if (percent) {
+    const v = Number(percent[1]);
+    if (!Number.isFinite(v) || v <= 0) return "";
+    return `${v}%`;
+  }
+
+  const px = s.match(/^(\d+(?:\.\d+)?)px$/i);
+  if (px) {
+    const v = Number(px[1]);
+    if (!Number.isFinite(v) || v <= 0) return "";
+    return `${v}px`;
+  }
+
+  return "";
+}
+
+/**
+ * 解析图片的可选尺寸语法块：`{scale=1/3}` 或 `{w=120px h=80px}`。
+ *
+ * 约定：
+ * - 用空格分隔多个 key=value；
+ * - 支持 key：scale / w / width / h / height（大小写不敏感）；
+ * - scale 默认只影响 width（height 保持 auto），以避免破坏图片纵横比。
+ *
+ * 目的：
+ * - 给 Markdown 图片一个“足够用且不复杂”的缩放能力；
+ * - 保持渲染结果稳定可预期，且不引入外部插件语法。
+ */
+function parseImageSizeSpec(spec) {
+  const s = String(spec ?? "").trim();
+  if (!s.startsWith("{") || !s.endsWith("}")) return { width: "", height: "" };
+  const inner = s.slice(1, -1).trim();
+  if (!inner) return { width: "", height: "" };
+
+  const parts = inner.split(/\s+/).filter(Boolean);
+  const map = new Map();
+  for (const p of parts) {
+    const idx = p.indexOf("=");
+    if (idx === -1) continue;
+    const k = p.slice(0, idx).trim().toLowerCase();
+    const v = p.slice(idx + 1).trim();
+    if (!k) continue;
+    map.set(k, v);
+  }
+
+  const scaleRaw = map.get("scale");
+  const wRaw = map.get("w") ?? map.get("width");
+  const hRaw = map.get("h") ?? map.get("height");
+
+  if (scaleRaw) {
+    const width = parseImageSizeValue(scaleRaw);
+    return { width, height: "" };
+  }
+
+  const width = wRaw ? parseImageSizeValue(wRaw) : "";
+  const height = hRaw ? parseImageSizeValue(hRaw) : "";
+  return { width, height };
+}
+
+/**
  * 行内渲染器：将一行/一段文本中的常用语法转换为 HTML。
  * 覆盖：`code`、**bold**、*italic*、[text](href)。
  * 注意：先整体 escape，再用正则替换，保证默认安全输出。
  */
 function renderInline(text) {
   let s = escapeHtml(text);
+  s = s.replaceAll(/!\[([^\]]*)\]\(([^)]+)\)(\{[^}]*\})?/g, (_, alt, href, sizeSpec) => {
+    const rawHref = String(href ?? "").trim();
+    if (!isSafeLink(rawHref)) return "";
+    const normalizedHref = normalizeSiteHref(rawHref);
+    const size = parseImageSizeSpec(sizeSpec);
+    const styles = [];
+    if (size.width) styles.push(`width:${size.width}`);
+    if (size.height) styles.push(`height:${size.height}`);
+    if (size.width) styles.push("margin-left:auto", "margin-right:auto");
+    const styleAttr = styles.length ? ` style="${escapeAttribute(styles.join(";"))};"` : "";
+    return `<img src="${escapeAttribute(normalizedHref)}" alt="${escapeAttribute(alt)}" loading="lazy"${styleAttr} />`;
+  });
   s = s.replaceAll(/`([^`]+)`/g, "<code>$1</code>");
   s = s.replaceAll(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replaceAll(/\*([^*]+)\*/g, "<em>$1</em>");
@@ -103,6 +186,36 @@ function renderInline(text) {
     return `<a href="${escapeAttribute(normalizedHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
   });
   return s;
+}
+
+function parseTableRow(line) {
+  const s = String(line ?? "").trim();
+  if (!s) return [];
+  const raw = s.startsWith("|") ? s.slice(1) : s;
+  const raw2 = raw.endsWith("|") ? raw.slice(0, -1) : raw;
+  return raw2.split("|").map((x) => String(x ?? "").trim());
+}
+
+function isTableSeparatorLine(line) {
+  const s = String(line ?? "").trim();
+  if (!s) return false;
+  if (!s.includes("|")) return false;
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(s);
+}
+
+function parseTableAlignments(separatorLine, columnCount) {
+  const raw = parseTableRow(separatorLine);
+  const out = [];
+  for (let i = 0; i < columnCount; i += 1) {
+    const cell = String(raw[i] ?? "").trim();
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    if (left && right) out.push("center");
+    else if (right) out.push("right");
+    else if (left) out.push("left");
+    else out.push("");
+  }
+  return out;
 }
 
 /**
@@ -238,6 +351,46 @@ export function markdownToHtml(markdown) {
       continue;
     }
 
+    if (i + 1 < lines.length && line.includes("|") && isTableSeparatorLine(lines[i + 1])) {
+      const headerCells = parseTableRow(line);
+      const aligns = parseTableAlignments(lines[i + 1], headerCells.length);
+      const bodyRows = [];
+      i += 2;
+      while (i < lines.length) {
+        const l = lines[i];
+        if (!String(l ?? "").trim()) break;
+        if (!String(l ?? "").includes("|")) break;
+        const cells = parseTableRow(l);
+        bodyRows.push(cells);
+        i += 1;
+      }
+
+      const thead =
+        headerCells.length === 0
+          ? ""
+          : `<thead><tr>${headerCells
+              .map((c, idx) => {
+                const align = aligns[idx] ? ` style="text-align:${aligns[idx]};"` : "";
+                return `<th${align}>${renderInline(c)}</th>`;
+              })
+              .join("")}</tr></thead>`;
+      const tbody = `<tbody>${bodyRows
+        .map((row) => {
+          const padded = [...row];
+          while (padded.length < headerCells.length) padded.push("");
+          const cells = headerCells.length ? padded.slice(0, headerCells.length) : padded;
+          return `<tr>${cells
+            .map((c, idx) => {
+              const align = aligns[idx] ? ` style="text-align:${aligns[idx]};"` : "";
+              return `<td${align}>${renderInline(c)}</td>`;
+            })
+            .join("")}</tr>`;
+        })
+        .join("")}</tbody>`;
+      out.push(`<table class="mdTable">${thead}${tbody}</table>`);
+      continue;
+    }
+
     const hr = line.trim();
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(hr)) {
       out.push("<hr />");
@@ -276,6 +429,13 @@ export function markdownToHtml(markdown) {
         const s = String(text ?? "");
         const hard = /\\\s*$/.test(s) || / {2,}$/.test(s);
         const cleaned = s.replace(/\\\s*$/, "").replace(/ {2,}$/, "").trimEnd();
+        const task = cleaned.match(/^\[( |x|X)\]\s+(.+)$/);
+        if (task) {
+          const checked = task[1].toLowerCase() === "x";
+          const body = task[2];
+          const input = `<input type="checkbox" disabled${checked ? " checked" : ""} />`;
+          return `<label class="mdTask">${input}<span>${renderInline(body)}</span></label>${hard ? "<br />" : ""}`;
+        }
         return `${renderInline(cleaned)}${hard ? "<br />" : ""}`;
       };
       while (i < lines.length) {

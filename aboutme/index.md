@@ -5,6 +5,8 @@ date: 2026-03-16
 
 ## Hi, I'm Chaobo Zhang (Chambers)
 
+![Me](/image/me.png){scale=1/3}
+
 > **"Earn your freedom, then live it."**
 
 一位正在积极探索多领域知识的**新手探险者**。我喜欢数据与互联网，深信实践是最好的老师，并热衷于利用 AI 拓宽认知的边界。对于一切都很感兴趣，希望能找到自己真正热爱的领域。
