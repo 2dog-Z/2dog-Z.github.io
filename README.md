@@ -235,9 +235,13 @@ date: 2026-03-16
 - 利用github issues，搭建真实评论系统，类似于Gitalk，对每一张markdown加载对应的评论内容。
 - 添加newmd.js，每次访问时自动搜索全部post下的md文件，并自动加入文件树映射。但是要添加缓存，减少每次打开网站时的卡顿与加载。
 - 开始适配自适应，适配不同窗口的大小
-- 对手机端进行单独适配，渲染部分占垂直3/4，命令行部分占垂直1/4，评论放在渲染和命令行部分中间，默认隐藏，只保留一行^ Comments，其中^占单独一个li容器，当点击的时候展开Comments部分。具体操作为comments部分平滑向上平移展开，直到占据渲染部分位置，^ Comments改名为Comments.此时渲染部分隐藏，变为一行v Page，其中v占一个li容器。当点击时，渲染部分平滑向下展开，Comments容器平滑向下收起，直至只保留一行^ Comments.
+- 对窗口宽度很小和手机端进行单独适配，渲染部分占垂直3/4，命令行部分占垂直1/4，评论放在渲染和命令行部分中间，默认隐藏，只保留一行^ Comments，其中^占单独一个li容器，当点击的时候展开Comments部分。具体操作为comments部分平滑向上平移展开，直到占据渲染部分位置，^ Comments改名为Comments.此时渲染部分隐藏，变为一行v Page，其中v占一个li容器。当点击时，渲染部分平滑向下展开，Comments容器平滑向下收起，直至只保留一行^ Comments.
 - 把现在的post/index.md变成/index.md，重写一个post/index.md，列出所有post
 - 添加标签页网站icon
+- 创建image文件夹作为图片存储, 文件树不映射image
+- 添加admin文件夹，作为管理界面，文件树不映射image，使用sha256加密后密码前端匹配，可以访问文件树（仅限aboutme, post和image文件夹），可以上传和删除文件。
+- 修改sudo彩蛋，当且仅当输入为sudo login时，跳转到admin页面
+- aboutme添加大头照
 - terminal在变成theme light时，变成#efefef
 - Latest Post旁边加上一个cd /post的li
 - email加上 Or just mailto:admin@2dogz.org
