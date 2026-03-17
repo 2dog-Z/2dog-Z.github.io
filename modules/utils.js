@@ -4,6 +4,8 @@
  * 目的：减少终端/评论/渲染器里与“核心业务无关”的细碎代码，提高可读性。
  */
 
+import { GITHUB_WORKER_ORIGIN, GITHUB_WORKER_PASS, GITHUB_WORKER_PASS_HEADER } from "./constants.js";
+
 /**
  * 睡眠/延时工具。
  * 功能：把 setTimeout 包装成 Promise，以便在 async/await 中自然地控制节奏。
@@ -163,4 +165,47 @@ export function githubApiUrlViaWorker(input, workerOrigin) {
   const u = new URL(s, window.location.href);
   if (u.origin !== "https://api.github.com") return u.toString();
   return `${origin}/gh${u.pathname}${u.search}`;
+}
+
+/**
+ * 统一的 GitHub API 请求入口（经由 Worker 中转）。
+ *
+ * 功能：
+ * - 把 GitHub API URL 重写为 Worker 代理 URL（/gh 前缀）；
+ * - 自动添加暗号 Header（Worker 侧会校验，避免被当成开放代理）；
+ * - 兜底设置 GitHub API 推荐的 Accept / 版本头；
+ * - 失败时保留原始 Response，交给调用方决定如何读取错误体。
+ *
+ * 目的：
+ * - 让业务模块只关心“GitHub API 的路径/参数”，不关心 token 注入细节；
+ * - 让 admin 文件管理与 comments 使用同一条安全通道（同一个 Worker + 暗号）。
+ */
+export async function githubRequest(url, options = {}) {
+  const method = options.method ?? "GET";
+  const headers = new Headers(options.headers ?? {});
+  if (!headers.get("Accept")) headers.set("Accept", "application/vnd.github+json");
+  if (!headers.get("X-GitHub-Api-Version")) headers.set("X-GitHub-Api-Version", "2022-11-28");
+  headers.set(GITHUB_WORKER_PASS_HEADER, GITHUB_WORKER_PASS);
+
+  const proxyUrl = githubApiUrlViaWorker(url, GITHUB_WORKER_ORIGIN);
+  const body = options.body == null || method === "GET" || method === "HEAD" ? null : options.body;
+  return await window.fetch(proxyUrl, { ...options, method, headers, body });
+}
+
+/**
+ * GitHub API：读取 JSON 的便捷封装。
+ *
+ * 规则：
+ * - ok 时返回 JSON
+ * - 非 ok 时抛出 Error（带 status/text），便于管理端在控制台定位
+ */
+export async function githubRequestJson(url, options = {}) {
+  const res = await githubRequest(url, options);
+  if (res.ok) return await res.json();
+  const text = await res.text().catch(() => "");
+  const err = new Error(`GitHub request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+  err.status = res.status;
+  err.statusText = res.statusText;
+  err.bodyText = text;
+  throw err;
 }

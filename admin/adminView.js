@@ -13,10 +13,11 @@ import {
   createCommentElementForAdmin,
   deleteCommentsForAdmin,
   getCachedCommentsForAdmin,
+  getCommentsGitHubRepo,
   sameCommentsForAdmin,
   syncCommentsForAdmin,
 } from "../modules/comments.js";
-import { sleep } from "../modules/utils.js";
+import { githubRequest, sleep } from "../modules/utils.js";
 
 /**
  * 收集虚拟文件系统里的 Markdown 路径列表。
@@ -438,16 +439,764 @@ function createCommentsManagementView(entries) {
 }
 
 /**
- * 文件管理页面（静态占位）。
- * 目的：为后续接入文件系统/上传/删除等功能预留入口。
+ * 文件管理页面（GitHub Pages 可用：经由 Worker 调 GitHub Contents API）。
+ *
+ * 能力范围：
+ * - 文件树索引：GET /repos/:owner/:repo/contents/:path
+ * - 文件下载：GET 文件内容（base64）-> 浏览器下载
+ * - 文件上传：PUT（base64）创建/覆盖
+ * - 文件删除：GET 取 sha -> DELETE
+ *
+ * 虚拟文件系统约定：
+ * - aboutme/post：直接使用主站 FILE_SYSTEM（文件=字符串，目录=对象）
+ * - root/image：在管理端内构建 FILE_SYSTEM 形态的“缓存树”（仅用于管理页）
+ *
+ * 权限约束：
+ * - root/post/aboutme：仅允许增删（含覆盖） .md
+ * - image：允许任意文件增删
  */
 function createFilesManagementView() {
   const page = document.createElement("div");
   page.className = "adminPage adminFilesPage";
-  const box = document.createElement("div");
-  box.className = "adminWorking";
-  box.textContent = "Working On It";
-  page.appendChild(box);
+
+  const loadingText = "Loading Files…";
+  const emptyText = "No files in this directory.";
+
+  const repo = getCommentsGitHubRepo();
+  const owner = repo?.owner || "";
+  const repoName = repo?.repo || "";
+
+  const ADMIN_ROOT_FS = {};
+  const ADMIN_IMAGE_FS = {};
+  const loadedNodes = new WeakSet();
+
+  const header = document.createElement("div");
+  header.className = "adminPageHeader";
+
+  const left = document.createElement("div");
+  left.className = "adminPageTitleBox";
+
+  const title = document.createElement("div");
+  title.className = "adminPageTitle";
+  title.textContent = "File Management";
+
+  const cdRootBtn = document.createElement("code");
+  cdRootBtn.className = "cmdButton adminCdRootBtn";
+  cdRootBtn.textContent = "cd /";
+  cdRootBtn.title = "cd /";
+  cdRootBtn.addEventListener("click", () => {
+    void switchDir("root");
+  });
+
+  left.appendChild(title);
+  left.appendChild(cdRootBtn);
+
+  const select = document.createElement("select");
+  select.className = "adminSelect";
+  select.setAttribute("aria-label", "Directory");
+  for (const k of ["root", "aboutme", "post", "image"]) {
+    const opt = document.createElement("option");
+    opt.value = k;
+    opt.textContent = k;
+    select.appendChild(opt);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "adminPageActions";
+
+  const downloadBtn = document.createElement("code");
+  downloadBtn.className = "cmdButton adminDownloadBtn";
+  downloadBtn.textContent = "download";
+  actions.appendChild(downloadBtn);
+
+  const deleteBtn = document.createElement("code");
+  deleteBtn.className = "cmdButton adminDeleteBtn";
+  deleteBtn.textContent = "delete";
+  actions.appendChild(deleteBtn);
+
+  header.appendChild(left);
+  header.appendChild(select);
+  header.appendChild(actions);
+
+  const center = document.createElement("div");
+  center.className = "adminFilesCenter";
+
+  const list = document.createElement("div");
+  list.className = "commentsList adminFilesList";
+  list.setAttribute("role", "list");
+
+  const empty = document.createElement("div");
+  empty.className = "commentsEmpty";
+  empty.textContent = loadingText;
+  empty.hidden = true;
+  list.appendChild(empty);
+
+  const uploadBtn = document.createElement("code");
+  uploadBtn.className = "cmdButton adminUploadBtn";
+  uploadBtn.textContent = "upload";
+  uploadBtn.title = "upload";
+
+  const uploadInput = document.createElement("input");
+  uploadInput.type = "file";
+  uploadInput.hidden = true;
+  uploadInput.setAttribute("aria-hidden", "true");
+
+  center.appendChild(list);
+  center.appendChild(uploadBtn);
+  center.appendChild(uploadInput);
+
+  /**
+   * 操作反馈提示。
+   * 目的：与评论管理一致，让删除/下载/上传都以轻量方式提示结果。
+   */
+  const hint = document.createElement("div");
+  hint.className = "adminFootnote";
+  hint.textContent = "";
+  hint.setAttribute("role", "status");
+  hint.setAttribute("aria-live", "polite");
+
+  page.appendChild(header);
+  page.appendChild(center);
+  page.appendChild(hint);
+
+  let currentKey = "root";
+  const selectedIds = new Set();
+  let renderSeq = 0;
+  let isDeleting = false;
+  let isBusy = false;
+  let hintTimer = 0;
+  let currentEntries = [];
+
+  function setActionEnabled(el, enabled) {
+    el.style.pointerEvents = enabled ? "auto" : "none";
+    el.style.opacity = enabled ? "1" : "0.6";
+  }
+
+  function setActionsEnabled() {
+    const byId = new Map(currentEntries.map((x) => [x.id, x]));
+    const selected = Array.from(selectedIds).map((id) => byId.get(id)).filter(Boolean);
+    const selectedFiles = selected.filter((x) => x.kind === "file");
+    const allow = !isBusy;
+    const canDownload = allow && selected.length === 1 && selectedFiles.length === 1;
+    const canDelete =
+      allow &&
+      !isDeleting &&
+      selected.length > 0 &&
+      selectedFiles.length === selected.length &&
+      selectedFiles.every((x) => canWriteFileAtKey(currentKey, x.name));
+
+    setActionEnabled(downloadBtn, canDownload);
+    setActionEnabled(deleteBtn, canDelete);
+  }
+
+  /**
+   * 设置提示文案并在短时间后自动清空。
+   * 目的：让 demo 交互“有反馈但不过度占据注意力”。
+   */
+  function setHint(text, options = {}) {
+    const { ttlMs = 1400 } = options;
+    hint.textContent = String(text ?? "");
+    if (hintTimer) window.clearTimeout(hintTimer);
+    if (!hint.textContent) return;
+    hintTimer = window.setTimeout(() => {
+      hint.textContent = "";
+    }, ttlMs);
+  }
+
+  function normalizeDirKey(key) {
+    const k = String(key ?? "").trim();
+    if (!k) return "root";
+    if (k === "root" || k === "aboutme" || k === "post" || k === "image") return k;
+    const parts = k.split("/").map((x) => x.trim()).filter(Boolean);
+    const base = parts[0];
+    if (base !== "root" && base !== "aboutme" && base !== "post" && base !== "image") return "root";
+    return [base, ...parts.slice(1)].join("/");
+  }
+
+  function selectLabelForKey(key) {
+    const parts = String(key ?? "")
+      .split("/")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return "root";
+    return parts[parts.length - 1];
+  }
+
+  /**
+   * 确保下拉列表里存在某个目录项。
+   * 目的：目录跳转时让“当前目录”在下拉框里可见且可回退。
+   */
+  function ensureSelectOption(key) {
+    const k = normalizeDirKey(key);
+    const existing = Array.from(select.options).find((o) => o.value === k);
+    if (existing) return;
+    const opt = document.createElement("option");
+    opt.value = k;
+    opt.textContent = selectLabelForKey(k);
+    select.appendChild(opt);
+  }
+
+  function encodePath(path) {
+    const p = String(path ?? "")
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "");
+    if (!p) return "";
+    return p
+      .split("/")
+      .filter(Boolean)
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+  }
+
+  function contentsApiUrl(path) {
+    const repoPath = String(path ?? "")
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "");
+    const encoded = encodePath(repoPath);
+    const suffix = encoded ? `/${encoded}` : "";
+    return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/contents${suffix}`;
+  }
+
+  /**
+   * 将“当前目录节点”转换成可渲染条目列表。
+   *
+   * 输出：
+   * - { id, kind: "dir"|"file", name, repoPath }
+   *
+   * 目的：
+   * - UI 渲染只依赖平面数组，便于复用“切换 + 重新渲染”的流程
+   * - 统一生成稳定 id（用 repoPath），方便复选框保持选中态
+   */
+  function collectEntriesFromNode(node, dirRepoPath) {
+    if (!node || typeof node !== "object") return [];
+    const names = Object.keys(node).sort((a, b) => a.localeCompare(b));
+    const out = [];
+    const dirs = [];
+    const files = [];
+    for (const name of names) {
+      const v = node[name];
+      if (v && typeof v === "object") dirs.push(name);
+      else if (typeof v === "string") files.push(name);
+    }
+    for (const d of dirs) {
+      const repoPath = dirRepoPath ? `${dirRepoPath}/${d}` : d;
+      out.push({ id: `dir:${repoPath}`, kind: "dir", name: d, repoPath });
+    }
+    for (const f of files) {
+      const repoPath = dirRepoPath ? `${dirRepoPath}/${f}` : f;
+      out.push({ id: `file:${repoPath}`, kind: "file", name: f, repoPath });
+    }
+    return out;
+  }
+
+  function baseOfKey(key) {
+    const k = normalizeDirKey(key);
+    const parts = k.split("/").filter(Boolean);
+    return parts[0] || "root";
+  }
+
+  function restPartsOfKey(key) {
+    const k = normalizeDirKey(key);
+    const parts = k.split("/").filter(Boolean);
+    return parts.slice(1);
+  }
+
+  function repoDirForKey(key) {
+    const base = baseOfKey(key);
+    const rest = restPartsOfKey(key);
+    if (base === "root") return rest.join("/");
+    if (base === "image") return ["image", ...rest].filter(Boolean).join("/");
+    if (base === "post") return "post";
+    if (base === "aboutme") return "aboutme";
+    return "";
+  }
+
+  function nodeForKey(key) {
+    const base = baseOfKey(key);
+    const rest = restPartsOfKey(key);
+    if (base === "root") {
+      let node = ADMIN_ROOT_FS;
+      for (const seg of rest) {
+        if (!node || typeof node !== "object") return null;
+        const next = node[seg];
+        if (!next || typeof next !== "object") node[seg] = {};
+        node = node[seg];
+      }
+      return node;
+    }
+    if (base === "image") {
+      let node = ADMIN_IMAGE_FS;
+      for (const seg of rest) {
+        if (!node || typeof node !== "object") return null;
+        const next = node[seg];
+        if (!next || typeof next !== "object") node[seg] = {};
+        node = node[seg];
+      }
+      return node;
+    }
+    if (base === "post") return FILE_SYSTEM?.post && typeof FILE_SYSTEM.post === "object" ? FILE_SYSTEM.post : null;
+    if (base === "aboutme") return FILE_SYSTEM?.aboutme && typeof FILE_SYSTEM.aboutme === "object" ? FILE_SYSTEM.aboutme : null;
+    return null;
+  }
+
+  /**
+   * 构建“树节点行”。
+   * 目的：复用评论管理的“复选 + 行渲染”思路，保持交互与结构一致。
+   */
+  function createRow(it) {
+    const row = document.createElement("div");
+    row.className = `adminFileRow ${it.kind === "dir" ? "adminFileRowDir" : "adminFileRowFile"}`;
+    row.setAttribute("role", "listitem");
+    row.style.setProperty("--indent", "0px");
+
+    if (it.kind === "file") {
+      const check = document.createElement("input");
+      check.className = "adminFileCheck";
+      check.type = "checkbox";
+      check.checked = selectedIds.has(it.id);
+      check.setAttribute("aria-label", "Select File");
+      check.addEventListener("change", () => {
+        if (check.checked) selectedIds.add(it.id);
+        else selectedIds.delete(it.id);
+        setActionsEnabled();
+      });
+      row.appendChild(check);
+    } else {
+      const spacer = document.createElement("div");
+      spacer.className = "adminFileCheckSpacer";
+      row.appendChild(spacer);
+      row.tabIndex = 0;
+      row.addEventListener("click", () => {
+        void switchDir(buildNextKeyFromDirClick(it));
+      });
+      row.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        void switchDir(buildNextKeyFromDirClick(it));
+      });
+    }
+
+    const icon = document.createElement("span");
+    icon.className = "adminFileIcon";
+    icon.textContent = it.kind === "dir" ? "dir" : "file";
+
+    const label = document.createElement("div");
+    label.className = "adminFileLabel";
+    label.textContent = it.name;
+
+    row.appendChild(icon);
+    row.appendChild(label);
+    return row;
+  }
+
+  function renderListForEntries(items) {
+    currentEntries = Array.isArray(items) ? items : [];
+    list.replaceChildren(empty);
+    for (const it of currentEntries) list.appendChild(createRow(it));
+    const hasAny = currentEntries.length > 0;
+    empty.textContent = hasAny ? "" : emptyText;
+    empty.hidden = hasAny;
+    list.scrollTop = 0;
+    setActionsEnabled();
+  }
+
+  function buildNextKeyFromDirClick(dirItem) {
+    const base = baseOfKey(currentKey);
+    const rest = restPartsOfKey(currentKey);
+    const name = String(dirItem?.name ?? "").trim();
+    if (!name) return normalizeDirKey(currentKey);
+
+    if (base === "root") {
+      if (rest.length === 0 && (name === "aboutme" || name === "post" || name === "image")) return name;
+      return ["root", ...rest, name].join("/");
+    }
+    if (base === "image") return ["image", ...rest, name].join("/");
+    return base;
+  }
+
+  async function loadDirIntoFsNode(dirRepoPath, node) {
+    if (!owner || !repoName) throw new Error("GitHub repo not configured");
+    if (!node || typeof node !== "object") return;
+    if (loadedNodes.has(node)) return;
+
+    const res = await githubRequest(contentsApiUrl(dirRepoPath), { method: "GET" });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Load dir failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+    }
+
+    const data = await res.json().catch(() => null);
+    const items = Array.isArray(data) ? data : [];
+
+    for (const k of Object.keys(node)) delete node[k];
+    for (const it of items) {
+      const name = String(it?.name ?? "").trim();
+      const type = String(it?.type ?? "").trim();
+      const path = String(it?.path ?? "").replace(/^\/+/, "").replace(/\/+$/, "");
+      if (!name || !type) continue;
+      if (type === "dir") node[name] = {};
+      else if (type === "file") node[name] = `./${path}`;
+    }
+
+    loadedNodes.add(node);
+  }
+
+  async function ensureFsReadyForKey(key) {
+    const base = baseOfKey(key);
+    const repoDir = repoDirForKey(key);
+    const node = nodeForKey(key);
+    if (!node || typeof node !== "object") return;
+
+    if (base === "root") return await loadDirIntoFsNode(repoDir, node);
+    if (base === "image") return await loadDirIntoFsNode(repoDir, node);
+    return;
+  }
+
+  function entryByIdMap() {
+    return new Map(currentEntries.map((x) => [x.id, x]));
+  }
+
+  function canWriteFileAtKey(dirKey, filename) {
+    const base = baseOfKey(dirKey);
+    const name = String(filename ?? "").trim();
+    const isMd = name.toLowerCase().endsWith(".md");
+    if (!name) return false;
+    if (base === "image") return true;
+    if (base === "root" || base === "post" || base === "aboutme") return isMd;
+    return false;
+  }
+
+  function fileRepoPathForUpload(dirKey, filename) {
+    const base = baseOfKey(dirKey);
+    const rest = restPartsOfKey(dirKey);
+    const name = String(filename ?? "").trim();
+    if (!name) return "";
+    if (base === "root") return [...rest, name].filter(Boolean).join("/");
+    if (base === "post") return ["post", name].join("/");
+    if (base === "aboutme") return ["aboutme", name].join("/");
+    if (base === "image") return ["image", ...rest, name].filter(Boolean).join("/");
+    return "";
+  }
+
+  function bytesToBase64(bytes) {
+    const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let i = 0; i < arr.length; i += chunkSize) {
+      const chunk = arr.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  }
+
+  function base64ToBytes(b64) {
+    const raw = String(b64 ?? "").replace(/\s+/g, "");
+    const binary = atob(raw);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  async function getFileFromGitHub(repoPath) {
+    const res = await githubRequest(contentsApiUrl(repoPath), { method: "GET" });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      const err = new Error(`Get file failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+      err.status = res.status;
+      throw err;
+    }
+    const data = await res.json().catch(() => null);
+    const type = String(data?.type ?? "");
+    if (type !== "file") throw new Error("Not a file");
+    const sha = String(data?.sha ?? "").trim();
+    const content = String(data?.content ?? "");
+    const encoding = String(data?.encoding ?? "").trim();
+    return { sha, content, encoding };
+  }
+
+  async function putFileToGitHub(repoPath, contentBase64, options = {}) {
+    const message = String(options.message ?? `admin upload ${repoPath}`).trim() || `admin upload ${repoPath}`;
+    const sha = String(options.sha ?? "").trim();
+    const payload = { message, content: String(contentBase64 ?? "") };
+    if (sha) payload.sha = sha;
+    const res = await githubRequest(contentsApiUrl(repoPath), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Upload failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+    }
+    return await res.json().catch(() => null);
+  }
+
+  async function deleteFileOnGitHub(repoPath, sha, options = {}) {
+    const message = String(options.message ?? `admin delete ${repoPath}`).trim() || `admin delete ${repoPath}`;
+    const payload = { message, sha: String(sha ?? "") };
+    const res = await githubRequest(contentsApiUrl(repoPath), {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Delete failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+    }
+    return await res.json().catch(() => null);
+  }
+
+  async function loadEntriesForKey(key) {
+    const base = baseOfKey(key);
+    const node = nodeForKey(key);
+    if (!node || typeof node !== "object") return [];
+
+    if (base === "post") {
+      if (!owner || !repoName) return collectEntriesFromNode(node, "post");
+      try {
+        const res = await githubRequest(contentsApiUrl("post"), { method: "GET" });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          const items = Array.isArray(data) ? data : [];
+          for (const it of items) {
+            const name = String(it?.name ?? "").trim();
+            const type = String(it?.type ?? "").trim();
+            if (!name || type !== "file") continue;
+            if (!name.toLowerCase().endsWith(".md")) continue;
+            node[name] = `./post/${name}`;
+          }
+        }
+      } catch {
+        return collectEntriesFromNode(node, "post");
+      }
+      return collectEntriesFromNode(node, "post");
+    }
+
+    if (base === "aboutme") return collectEntriesFromNode(node, "aboutme");
+
+    await ensureFsReadyForKey(key);
+    const repoDir = repoDirForKey(key);
+    return collectEntriesFromNode(node, repoDir);
+  }
+
+  async function smoothRenderForKey(key) {
+    const seq = (renderSeq += 1);
+    list.classList.add("switching");
+    await sleep(180);
+    if (seq !== renderSeq) return;
+    let items = [];
+    try {
+      items = await loadEntriesForKey(key);
+    } catch (e) {
+      console.warn("[admin] load files failed", e);
+      items = [];
+    }
+    if (seq !== renderSeq) return;
+    renderListForEntries(items);
+    window.requestAnimationFrame(() => {
+      list.classList.remove("switching");
+    });
+  }
+
+  function clearSelection() {
+    selectedIds.clear();
+    setActionsEnabled();
+  }
+
+  /**
+   * 切换目录：先做轻量切换动画，再渲染对应文件树。
+   * 目的：复用评论管理的“切页体验”，让中间容器平滑更新。
+   */
+  async function switchDir(nextKey) {
+    currentKey = normalizeDirKey(nextKey);
+    clearSelection();
+    empty.textContent = loadingText;
+    empty.hidden = false;
+    setHint("");
+    ensureSelectOption(currentKey);
+    select.value = currentKey;
+    await smoothRenderForKey(currentKey);
+  }
+
+  /**
+   * 触发下载。
+   */
+  function downloadSelected() {
+    void (async () => {
+      if (isBusy) return;
+      const ids = Array.from(selectedIds);
+      if (ids.length !== 1) return;
+      const it = entryByIdMap().get(ids[0]);
+      if (!it || it.kind !== "file") return;
+      const repoPath = String(it.repoPath ?? "").trim();
+      if (!repoPath) return;
+
+      isBusy = true;
+      setActionsEnabled();
+      setHint("");
+      try {
+        const file = await getFileFromGitHub(repoPath);
+        const bytes = file.encoding === "base64" ? base64ToBytes(file.content) : base64ToBytes(file.content);
+        const blob = new Blob([bytes], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = it.name || "download";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.setTimeout(() => URL.revokeObjectURL(url), 8000);
+        setHint("Successful", { ttlMs: 1200 });
+      } catch (e) {
+        console.warn("[admin] download failed", e);
+        setHint("Failed", { ttlMs: 2400 });
+      } finally {
+        isBusy = false;
+        setActionsEnabled();
+      }
+    })();
+  }
+
+  /**
+   * 删除选中项（带确认）。
+   * 目的：复用评论管理的“confirm + 状态反馈”交互，保持一致性。
+   */
+  function deleteSelected() {
+    void (async () => {
+      if (isDeleting || isBusy) return;
+      if (selectedIds.size === 0) return;
+
+      const ok = window.confirm(`Ensure to delete ${selectedIds.size} file(s)?`);
+      if (!ok) return;
+
+      isDeleting = true;
+      isBusy = true;
+      setActionsEnabled();
+      setHint("");
+      try {
+        const byId = entryByIdMap();
+        const targets = Array.from(selectedIds)
+          .map((id) => byId.get(id))
+          .filter((x) => x && x.kind === "file");
+        if (targets.length === 0) return;
+
+        for (const it of targets) {
+          const repoPath = String(it.repoPath ?? "").trim();
+          if (!repoPath) continue;
+          if (!canWriteFileAtKey(currentKey, it.name)) throw new Error("Permission denied");
+          const meta = await getFileFromGitHub(repoPath);
+          if (!meta.sha) throw new Error("Missing sha");
+          await deleteFileOnGitHub(repoPath, meta.sha);
+
+          const base = baseOfKey(currentKey);
+          if (base === "post" || base === "aboutme") {
+            const node = nodeForKey(currentKey);
+            if (node && typeof node === "object") delete node[it.name];
+          } else {
+            const node = nodeForKey(currentKey);
+            if (node && typeof node === "object") delete node[it.name];
+          }
+        }
+
+        clearSelection();
+        await smoothRenderForKey(currentKey);
+        setHint("Successful", { ttlMs: 1200 });
+      } catch (e) {
+        console.warn("[admin] delete files failed", e);
+        setHint("Failed", { ttlMs: 2400 });
+      } finally {
+        isDeleting = false;
+        isBusy = false;
+        setActionsEnabled();
+      }
+    })();
+  }
+
+  /**
+   * 上传（根据当前目录限制文件类型）。
+   *
+   * 交互：
+   * - 点击 upload 触发文件选择
+   * - 选择后执行 PUT 写入 GitHub
+   */
+  function uploadInCurrentDir() {
+    uploadInput.value = "";
+    const base = baseOfKey(currentKey);
+    uploadInput.accept = base === "image" ? "" : ".md";
+    uploadInput.click();
+  }
+
+  uploadInput.addEventListener("change", () => {
+    void (async () => {
+      const f = uploadInput.files && uploadInput.files[0];
+      uploadInput.value = "";
+      if (!f) return;
+      if (isBusy) return;
+      if (!canWriteFileAtKey(currentKey, f.name)) {
+        setHint("Failed", { ttlMs: 2400 });
+        return;
+      }
+      const repoPath = fileRepoPathForUpload(currentKey, f.name);
+      if (!repoPath) {
+        setHint("Failed", { ttlMs: 2400 });
+        return;
+      }
+
+      isBusy = true;
+      setActionsEnabled();
+      setHint("");
+      try {
+        let sha = "";
+        try {
+          const meta = await getFileFromGitHub(repoPath);
+          sha = meta.sha;
+        } catch (e) {
+          const status = Number(e?.status);
+          if (status !== 404) throw e;
+          sha = "";
+        }
+
+        const buf = await f.arrayBuffer();
+        const b64 = bytesToBase64(new Uint8Array(buf));
+        await putFileToGitHub(repoPath, b64, { sha });
+
+        const node = nodeForKey(currentKey);
+        if (node && typeof node === "object") node[f.name] = `./${repoPath}`;
+
+        await smoothRenderForKey(currentKey);
+        setHint("Successful", { ttlMs: 1600 });
+      } catch (e) {
+        console.warn("[admin] upload failed", e);
+        setHint("Failed", { ttlMs: 2400 });
+      } finally {
+        isBusy = false;
+        setActionsEnabled();
+      }
+    })();
+  });
+
+  uploadBtn.addEventListener("click", () => {
+    uploadInCurrentDir();
+  });
+  deleteBtn.addEventListener("click", () => {
+    deleteSelected();
+  });
+  downloadBtn.addEventListener("click", () => {
+    downloadSelected();
+  });
+
+  select.addEventListener("change", () => {
+    void switchDir(select.value);
+  });
+
+  setActionsEnabled();
+  ensureSelectOption(currentKey);
+  select.value = currentKey;
+  if (!owner || !repoName) {
+    empty.textContent = "GitHub repo not configured.";
+    empty.hidden = false;
+  }
+  void switchDir(currentKey);
   return page;
 }
 

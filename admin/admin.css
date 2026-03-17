@@ -199,6 +199,14 @@ body {
   padding-bottom: 10px;
 }
 
+.adminPageTitleBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
 .adminPageTitle {
   /* 左侧标题：更克制的强调，不抢主内容 */
   font-size: 12px;
@@ -246,6 +254,86 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+}
+
+.adminFilesCenter {
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel2);
+  position: relative;
+}
+
+.adminFilesList {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 52px;
+}
+
+.adminFileRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  padding-left: calc(12px + var(--indent, 0px));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.adminFileRowDir {
+  cursor: pointer;
+}
+
+.adminFileRowDir:hover {
+  background: rgba(86, 156, 214, 0.08);
+}
+
+.adminFileRowDir:focus {
+  outline: none;
+  background: rgba(86, 156, 214, 0.12);
+}
+
+.adminFileRow:last-child {
+  border-bottom: none;
+}
+
+.adminFileCheck {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.adminFileCheckSpacer {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.adminFileIcon {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  width: 36px;
+  flex: 0 0 auto;
+}
+
+.adminFileLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.adminUploadBtn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
 }
 
 .adminCommentRow {
