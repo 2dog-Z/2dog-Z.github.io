@@ -1,4 +1,4 @@
-import { CHEAT_SHEET, DEFAULT_PAGE, FILE_SYSTEM } from "./constants.js";
+import { CHEAT_SHEET, DEFAULT_PAGE, FILE_SYSTEM, TERMINAL_MAX_LINES, TERMINAL_TRIM_TOP_LINES } from "./constants.js";
 import { getMarkdownMeta } from "./markdown.js";
 import { joinPath, resolveDir, sleep, stripFileExtension, tokenize } from "./utils.js";
 
@@ -52,6 +52,16 @@ export function createTerminal(options = {}) {
   function scrollToBottom() {
     output.scrollTop = output.scrollHeight;
   }
+  function trimOutputOnOverflow() {
+    const lines = output.querySelectorAll(".terminalLine");
+    if (lines.length >= TERMINAL_MAX_LINES) {
+      const removeCount = Math.min(TERMINAL_TRIM_TOP_LINES, lines.length);
+      for (let i = 0; i < removeCount; i += 1) {
+        const node = lines[i];
+        if (node && node.parentNode === output) output.removeChild(node);
+      }
+    }
+  }
 
   /**
    * 刷新提示符（prompt）显示。
@@ -102,6 +112,7 @@ export function createTerminal(options = {}) {
     div.className = `terminalLine${variant ? ` ${variant}` : ""}`;
     div.textContent = text;
     output.appendChild(div);
+    trimOutputOnOverflow();
     scrollToBottom();
   }
 
@@ -132,6 +143,7 @@ export function createTerminal(options = {}) {
     div.appendChild(textNode);
     div.appendChild(cursor);
     output.appendChild(div);
+    trimOutputOnOverflow();
     scrollToBottom();
     return { div, textNode, cursor };
   }
@@ -165,6 +177,7 @@ export function createTerminal(options = {}) {
       else div.appendChild(p);
     }
     output.appendChild(div);
+    trimOutputOnOverflow();
     scrollToBottom();
   }
 
@@ -212,6 +225,7 @@ export function createTerminal(options = {}) {
         const div = document.createElement("div");
         div.className = `terminalLine${variant ? ` ${variant}` : ""}`;
         output.appendChild(div);
+        trimOutputOnOverflow();
         const line = lines[i];
         let pos = 0;
         const tick = () => {
@@ -252,9 +266,30 @@ export function createTerminal(options = {}) {
 
     const entries =
       pathParts.length === 0
-        ? Object.keys(FILE_SYSTEM)
-            .sort()
-            .map((name) => [name, FILE_SYSTEM[name]])
+        ? await (async () => {
+            const dirs = [];
+            const files = [];
+            for (const [name, value] of Object.entries(FILE_SYSTEM)) {
+              if (value && typeof value === "object") dirs.push([name, value]);
+              else files.push([name, value]);
+            }
+            dirs.sort(([a], [b]) => a.localeCompare(b));
+            const filesWithMeta = await Promise.all(
+              files.map(async ([name, value]) => {
+                if (typeof value === "string" && name.endsWith(".md")) {
+                  const meta = await getMarkdownMeta(value);
+                  const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
+                  return { name, value, t };
+                }
+                return { name, value, t: -Infinity };
+              })
+            );
+            filesWithMeta.sort((a, b) => {
+              if (b.t !== a.t) return b.t - a.t;
+              return a.name.localeCompare(b.name);
+            });
+            return [...dirs, ...filesWithMeta.map((x) => [x.name, x.value])];
+          })()
         : await (async () => {
             const dirs = [];
             const files = [];
@@ -487,8 +522,13 @@ export function createTerminal(options = {}) {
   async function runSay(text) {
     const t = text.trim();
     if (!t) return await typewriter("say: please enter a message", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
-    window.__comments?.add(t);
-    await typewriter("OK: added to comments", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
+    try {
+      const ok = await window.__comments?.add?.(t);
+      if (!ok) return await typewriter("say: failed to add comment", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
+      await typewriter("comment added successfully", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
+    } catch {
+      await typewriter("say: failed to add comment", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
+    }
   }
 
   /**

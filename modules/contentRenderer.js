@@ -16,6 +16,7 @@ export function createContentRenderer(options = {}) {
   const viewportEl = document.getElementById("contentViewport");
   const scrollEl = viewportEl?.parentElement;
   const fileSystem = options.fileSystem;
+  const onPathRendered = options.onPathRendered;
 
   /**
    * 生成命令速查表的 HTML。
@@ -41,7 +42,7 @@ export function createContentRenderer(options = {}) {
    * 数据来源：传入的 fileSystem.post（虚拟文件系统中的 post 目录）。
    * 用途：在 Markdown 中通过 {{posts}} 占位符注入（例如首页）。
    */
-  async function renderPostsHtml() {
+  async function renderPostLatestHtml() {
     const postDir = fileSystem?.post;
     if (!postDir || typeof postDir !== "object") return '<div class="contentHint">(no posts)</div>';
     const entries = Object.entries(postDir).filter(([k, v]) => typeof v === "string" && k.endsWith(".md") && k !== "index.md");
@@ -63,7 +64,34 @@ export function createContentRenderer(options = {}) {
       .map((m) => {
         const date = m.date ? formatIsoDate(m.date) : "";
         const cmd = `cat /post/${stripFileExtension(m.key)}`;
-        return `<li class="mdPostItem" data-cmd="${cmd}"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${m.title}</span><span class="mdPostCmd"><code>${cmd}</code></span></li>`;
+        return `<li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${m.title}</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li>`;
+      })
+      .join("");
+    return `<ul class="mdPostList">${items}</ul>`;
+  }
+
+  async function renderAllPostsHtml() {
+    const postDir = fileSystem?.post;
+    if (!postDir || typeof postDir !== "object") return '<div class="contentHint">(no posts)</div>';
+    const entries = Object.entries(postDir).filter(([k, v]) => typeof v === "string" && k.endsWith(".md") && k !== "index.md");
+    if (entries.length === 0) return '<div class="contentHint">(no posts)</div>';
+    const metas = await Promise.all(
+      entries.map(async ([k, url]) => {
+        const meta = await getMarkdownMeta(url);
+        return { key: k, url, title: meta.title || stripFileExtension(k), date: meta.date };
+      })
+    );
+    metas.sort((a, b) => {
+      const ta = a.date instanceof Date ? a.date.getTime() : -Infinity;
+      const tb = b.date instanceof Date ? b.date.getTime() : -Infinity;
+      if (tb !== ta) return tb - ta;
+      return a.title.localeCompare(b.title);
+    });
+    const items = metas
+      .map((m) => {
+        const date = m.date ? formatIsoDate(m.date) : "";
+        const cmd = `cat /post/${stripFileExtension(m.key)}`;
+        return `<li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostDate">${date}</span><span class="mdPostTitle">${m.title}</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li>`;
       })
       .join("");
     return `<ul class="mdPostList">${items}</ul>`;
@@ -71,7 +99,7 @@ export function createContentRenderer(options = {}) {
 
   function renderAboutMeHtml() {
     const cmd = "cat /aboutme/index";
-    return `<ul class="mdPostList"><li class="mdPostItem" data-cmd="${cmd}"><span class="mdPostTitle">About Me</span><span class="mdPostCmd"><code>${cmd}</code></span></li></ul>`;
+    return `<ul class="mdPostList"><li class="mdPostItem" data-cmd="${cmd}" title="jumpto"><span class="mdPostTitle">About Me</span><span class="mdPostCmd"><code title="jumpto">${cmd}</code></span></li></ul>`;
   }
 
   function renderSocialLinksHtml() {
@@ -133,13 +161,29 @@ export function createContentRenderer(options = {}) {
         const contentHtml0 = markdownToHtml(doc.body);
         const vars = {
           cheatSheet: renderCheatSheetHtml(),
-          posts: await renderPostsHtml(),
+          posts: await renderAllPostsHtml(),
+          postLatest: await renderPostLatestHtml(),
           aboutMe: renderAboutMeHtml(),
           socialLinks: renderSocialLinksHtml(),
         };
         const contentHtml = replaceHtmlPlaceholders(contentHtml0, vars);
         const date = doc.date ? formatIsoDate(doc.date) : "";
         viewportEl.innerHTML = renderTemplate(template, { date, content: contentHtml });
+        const h2s = viewportEl.querySelectorAll("h2");
+        for (const h2 of h2s) {
+          const text = h2.textContent?.trim();
+          if (text === "Posts") {
+            const code = document.createElement("code");
+            code.className = "cmdButton";
+            code.textContent = "cd /post";
+            code.dataset.cmd = "cd /post";
+            code.style.marginLeft = "10px";
+            code.title = "jumpto";
+            h2.appendChild(code);
+            break;
+          }
+        }
+        if (typeof onPathRendered === "function") onPathRendered(normalized);
       } else {
         const res = await window.fetch(normalized);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -152,6 +196,7 @@ export function createContentRenderer(options = {}) {
           h1.remove();
         }
         viewportEl.innerHTML = doc.body.innerHTML;
+        if (typeof onPathRendered === "function") onPathRendered("");
       }
       if (scrollEl) scrollEl.scrollTop = 0;
       window.requestAnimationFrame(() => {
@@ -161,6 +206,7 @@ export function createContentRenderer(options = {}) {
     } catch (e) {
       viewportEl.innerHTML =
         '<div class="contentHint">Failed to load content. If you are opening this page via <strong>file://</strong>, please run a local static server, or deploy to GitHub Pages.</div>';
+      if (typeof onPathRendered === "function") onPathRendered("");
       window.requestAnimationFrame(() => {
         viewportEl.classList.remove("switching");
       });

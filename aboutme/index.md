@@ -39,7 +39,7 @@ A beginning explorer to knowledge across diverse fields. I am passionate about d
 
 **硬件发烧友 (Hardware Enthusiast)**
 
-​		**ITX、NAS 、MiniPC、3D Printing…**
+​   **ITX、NAS 、MiniPC、3D Printing…**
 
  - 热衷于搭建，享受亲手制造实物的成就感
  - Keen on building things, and enjoying the sense of accomplishment from crafting with my own hands.
@@ -64,4 +64,5 @@ A beginning explorer to knowledge across diverse fields. I am passionate about d
 
 - Rhodes Sydney / Shenzhen China
 - **Email：** [chamberszhang000@gmail.com](mailto:chamberszhang000@gmail.com) / [czha0212@uni.sydney.edu.au](mailto:czha0212@uni.sydney.edu.au)
+    Or Just [admin@2dogz.org](mailto:admin@2dogz.org)
 {{socialLinks}}

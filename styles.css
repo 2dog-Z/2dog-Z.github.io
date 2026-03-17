@@ -239,6 +239,24 @@ body {
   padding: 1px 6px;
 }
 
+.cmdButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.95rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 1px 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.cmdButton:hover {
+  border-color: rgba(86, 156, 214, 0.45);
+  background: rgba(86, 156, 214, 0.08);
+}
+
 .mdContent pre {
   overflow: auto;
   background: #1b1b1c;
@@ -356,6 +374,50 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.commentsList.switching {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.commentsEmpty {
+  margin: auto;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 18px 12px;
+}
+
+.commentsComposer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.commentsInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.commentsInput:focus {
+  border-color: rgba(86, 156, 214, 0.55);
 }
 
 .commentItem {

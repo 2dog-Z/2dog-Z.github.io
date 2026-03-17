@@ -1,86 +1,58 @@
-# 迭代开发文档：Version 3 → Version 4
+# 迭代开发文档：Version 4 → Version 5
 
-本文档用于记录本静态终端风格个人主页从 Version 3 演进到 Version 4 的核心变化、设计取舍与可扩展方式，并给出面向后续版本的迭代建议。
+本文档用于记录本静态终端风格个人主页从 Version 4 演进到 Version 5 的核心变化、设计取舍、关键实现位置与后续扩展建议。内容以“对比 + 可定位代码”为主，便于复盘与继续迭代。
 
 ## 1. 项目定位与约束（保持不变）
-
-项目目标一句话：**用纯静态站点实现“像终端一样浏览内容”的个人主页体验**。
-
-共同约束（V3~V4 继续遵守）：
 
 - 无后端、无数据库、无打包器（浏览器可直接运行）
 - HTML + CSS + 原生 JavaScript（ES Module）
 - 交互核心在下方终端：通过命令驱动内容浏览与轻量互动（评论）
 
-在约束下的演进方向（V4 主要推进）：
+## 2. Version 5：本轮迭代目标与结果
 
-- 内容体系从 HTML 扩展到 Markdown（更易写、更易维护）
-- 以模板解耦“文章结构”和“文章内容”
-- 在不引入依赖的前提下，增强可发现性与导航效率
+Version 5 的主要目标：
 
-## 2. Version 4：本轮迭代目标与结果
+- 将“首页/落地页”从 `/post/index.md` 提升为站点根页面 `/index.md`，形成更清晰的信息架构
+- 内容侧增强导航效率：区分“Latest Post”和“All Posts”，并提供更明显的跳转入口
+- 评论从“演示数据”升级为“可持久化的真实数据”，并与页面路径绑定（按文章/页面分流）
+- 终端输出做上限裁剪，避免长时间使用导致 DOM 无限增长
+- 统一并强化 `data-cmd` 的“点击即命令”交互风格（含顶部、内容区、评论区）
 
-Version 4 的主要目标：
+关键入口与模块（V5）：
 
-- 将“文章内容”从静态 HTML 文件迁移到 Markdown 文件
-- 保持“单页体验”：仍通过内容区注入渲染结果，而不是整页跳转
-- 引入轻量模板与占位符，让首页可以动态生成“文章列表/命令表/社交链接”等片段
-- 让内容区也能触发终端命令（点击即可执行 `cat/cd`）
+- 入口装配：[app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/app.js)
+- 常量与虚拟 FS：[constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)
+- 内容渲染器（Markdown + 动态占位符）：[contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/contentRenderer.js)
+- Markdown 引擎（零依赖）：[markdown.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/markdown.js)
+- 终端核心（含输出裁剪）：[terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/terminal.js)
+- 评论系统（GitHub Issue 持久化 + 分页缓存）：[comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/comments.js)
+- 页面结构（含评论输入框）：[index.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.html)
+- 根首页内容（Latest Post + Cheat Sheet）：[index.md](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.md)
+- Posts 列表页（All Posts）：[post/index.md](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/post/index.md)
 
-关键入口与模块：
+对比参考（Version 4 对应实现）：
 
-- 入口装配：[app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/app.js)
-- 常量与虚拟 FS：[constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/constants.js)
-- 内容渲染器（HTML + Markdown）：[contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/contentRenderer.js)
-- Markdown 引擎（零依赖）：[markdown.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/markdown.js)
-- 文章模板：[article.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/templates/article.html)
-- 示例内容：首页 [post/index.md](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/post/index.md)；关于页 [aboutme/index.md](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/aboutme/index.md)
+- 入口装配：[Version 4/app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/app.js)
+- 内容渲染器：[Version 4/contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/contentRenderer.js)
+- 评论模块（演示数据）：[Version 4/comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/comments.js)
+- 终端核心：[Version 4/terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/terminal.js)
 
-对比参考（Version 3 对应实现）：
+## 3. Version 4 vs Version 5：对比总表
 
-- 入口装配：[Version 3/app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%203/app.js)
-- 常量与虚拟 FS：[Version 3/constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%203/modules/constants.js)
-- 内容渲染器（HTML）：[Version 3/contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%203/modules/contentRenderer.js)
-- 终端核心：[Version 3/terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%203/modules/terminal.js)
-
-## 3. Version 3 vs Version 4：对比总表
-
-| 维度 | Version 3 | Version 4 |
+| 维度 | Version 4 | Version 5 |
 |---|---|---|
-| 内容来源 | 静态 HTML（`./post/index.html` 等） | 静态 Markdown（`./post/index.md` 等），可携带 front matter |
-| 默认页 | `DEFAULT_PAGE = ./post/index.html` | `DEFAULT_PAGE = ./post/index.md`（见 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/constants.js)） |
-| 内容渲染 | `fetch HTML + DOMParser` 注入 | `.md`：front matter + 轻量 md→html + 模板渲染；`.html`：保持兼容（见 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/contentRenderer.js)） |
-| 文章结构 | 每篇文章自带 HTML 结构 | 文章内容与结构解耦：用模板包裹（见 [article.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/templates/article.html)） |
-| 动态片段 | 首页 cheat sheet 为静态 HTML 内容 | 支持 `{{cheatSheet}}/{{posts}}/{{aboutMe}}/{{socialLinks}}` 等占位符注入（见 [post/index.md](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/post/index.md) 与 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/contentRenderer.js)） |
-| `ls` 展示 | 文件/目录可点击跳转 | 目录仍可点；文件保留 `.md` 后缀，并按文章 `date` 优先排序（见 [terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/terminal.js)） |
-| 内容区交互 | 主要通过终端输入命令 | 内容区可点击触发命令（基于 `data-cmd`，见 [app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/app.js)） |
-| 主题（light） | 终端随主题变为浅色 | light 模式下终端仍保持黑底，增强“终端一致性”（见 [styles.light.css](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/styles.light.css)） |
-| 安全与依赖 | 仅加载站内 HTML | Markdown 默认转义 HTML，并对链接协议做白名单校验；保持零第三方依赖（见 [markdown.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/markdown.js)） |
+| 默认页 | `DEFAULT_PAGE = ./post/index.md` | `DEFAULT_PAGE = ./index.md`（见 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)） |
+| 信息架构 | “首页”实质是 Posts 首页 | 增加根首页（About/Latest/CheatSheet 聚合），Posts 成为独立列表页 |
+| 占位符体系 | `{{posts}}` 输出“最新 1 篇” | 分化为 `{{postLatest}}`（最新 1 篇）+ `{{posts}}`（全部列表） |
+| 内容区导航 | 主要靠终端 `cd/cat` 与文章内 `data-cmd` | 在首页的 Posts 标题旁注入 `cd /post` 快捷按钮（见 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/contentRenderer.js)） |
+| 评论数据 | 本地随机昵称 + 示例评论（不可持久化） | GitHub Issue Comments 存储（可持久化），按页面路径过滤，带本地缓存与乐观更新（见 [comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/comments.js)） |
+| 评论交互 | 仅终端 `say` | 终端 `say` + 评论区输入框一键转发 `say`（见 [index.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.html)） |
+| 终端输出 | 无上限裁剪（长期使用可能堆积 DOM） | 增加最大行数与裁剪策略（见 [terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/terminal.js) 与 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)） |
+| 站点资产 | 无 favicon | 增加 favicon 与 icon（见 [index.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.html) 与 `./image/icon.png`） |
 
 ## 4. 目录结构演进
 
-### 4.1 Version 3（HTML 内容为主）
-
-```
-Version 3/
-  ├─ aboutme/
-  │   └─ index.html
-  ├─ post/
-  │   └─ index.html
-  ├─ modules/
-  │   ├─ comments.js
-  │   ├─ constants.js
-  │   ├─ contentRenderer.js
-  │   ├─ terminal.js
-  │   ├─ theme.js
-  │   └─ utils.js
-  ├─ index.html
-  ├─ app.js
-  ├─ styles.css
-  └─ styles.light.css
-```
-
-### 4.2 Version 4（Markdown 内容 + 模板）
+### 4.1 Version 4
 
 ```
 Version 4/
@@ -107,101 +79,113 @@ Version 4/
   └─ styles.light.css
 ```
 
-## 5. 关键设计决策（为什么 V4 要这么改）
+### 4.2 Version 5
 
-### 5.1 内容从 HTML 迁移到 Markdown
+```
+Version 5/
+  ├─ index.md
+  ├─ aboutme/
+  │   └─ index.md
+  ├─ post/
+  │   ├─ index.md
+  │   ├─ 2026-03-15-getting-started.md
+  │   ├─ 2026-03-10-notes.md
+  │   └─ 2026-02-28-links-and-format.md
+  ├─ templates/
+  │   └─ article.html
+  ├─ image/
+  │   └─ icon.png
+  ├─ modules/
+  │   ├─ comments.js
+  │   ├─ constants.js
+  │   ├─ contentRenderer.js
+  │   ├─ markdown.js
+  │   ├─ terminal.js
+  │   ├─ theme.js
+  │   └─ utils.js
+  ├─ index.html
+  ├─ app.js
+  ├─ styles.css
+  └─ styles.light.css
+```
 
-V3 的文章是“写 HTML 文件”。当文章数量增加时，维护成本会体现在：
+## 5. 关键设计决策（为什么 V5 要这么改）
 
-- 写作门槛：每篇文章要处理 HTML 结构与样式一致性
-- 结构复用困难：想统一加日期/脚注/导航等，需要逐篇改
+### 5.1 根首页 `/index.md`：把“落地体验”从 Posts 中抽离
 
-V4 改为“写 Markdown 文件”，并允许通过 front matter 提供元信息（例如 `title`、`date`），以支撑后续的列表/排序/展示（见 [post/index.md](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/post/index.md)）。
+V4 把 `post/index.md` 作为默认页，会导致“进入站点=进入文章列表/文章页”的体验偏重内容目录，而不是“个人主页入口”。V5 将默认页改为 `./index.md`（见 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)），并把首页内容组织为：
 
-### 5.2 文章结构与内容解耦：模板 + 占位符
+- About（入口到 /aboutme）
+- Latest Post（入口到最新文章）
+- Command Cheat Sheet（帮助用户上手）
 
-V4 的 Markdown 渲染结果不会直接塞到内容区，而是先：
+### 5.2 “Latest” 与 “All Posts” 分流：更贴合阅读路径
 
-1. Markdown → HTML
-2. 替换 HTML 中的占位符（例如 `{{posts}}`、`{{cheatSheet}}`）
-3. 再套用模板 [article.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/templates/article.html)
+V5 的占位符拆分为：
 
-收益：
+- `{{postLatest}}`：在首页只展示“最新 1 篇”，降低信息噪音
+- `{{posts}}`：在 `/post/index.md` 展示“全部文章列表”，作为归档页
 
-- 文章结构稳定：统一文章容器、元信息区、排版规则
-- 首页更“动态”：无需手写文章列表，内容由虚拟 FS 与元信息生成
-- 仍保持纯静态：模板就是一个静态 HTML 文件
+对应实现集中在 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/contentRenderer.js)。
 
-### 5.3 零依赖 Markdown 引擎：可控、可审阅、带安全边界
+### 5.3 评论系统升级：从“假数据”到“可持久化 + 按页面分流”
 
-V4 没有引入第三方 Markdown 库，而是实现了“满足当前需求的子集”：
+V4 的评论是演示性质：初始化样例数据，刷新即变化，无法沉淀。V5 把评论存储到 GitHub 仓库的某个 Issue 的 comments 中（同一个 issue 作为“评论存储桶”），并用 payload 里的 `page` 字段实现“按页面过滤”。
 
-- 标题、段落、列表、引用、代码块、行内样式、链接、分割线
-- 默认 HTML 转义（防止 Markdown 直接注入 HTML）
-- 链接 `href` 白名单校验（拒绝 `javascript:` 等危险协议）
-- `fetch` 结果缓存（避免反复请求）
+V5 评论侧的关键点：
 
-实现入口见 [markdown.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/markdown.js)。
+- `setPage(path)`：当内容区渲染了新页面时切换评论上下文
+- 本地缓存：使用 `localStorage` 保存拉取过的评论，加速首屏与减少请求
+- 乐观更新：提交 `say` 后先插入本地评论，再异步写入 GitHub
 
-### 5.4 `ls` 更像“内容目录”：按日期排序 + 保留后缀
+实现见 [comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/comments.js)，页面联动入口在 [app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/app.js) 的 `onPathRendered`。
 
-V3 的 `ls` 更偏“文件系统浏览”；V4 让 `post/` 下的 Markdown 文件按 `date` 从新到旧排序，并在输出中保留 `.md` 后缀：
+### 5.4 终端输出裁剪：稳定长期使用的性能
 
-- 保留后缀：让用户一眼知道该条目是 Markdown 内容（同时也兼容未来混入 `.html`）
-- 日期排序：更符合博客阅读习惯（最新内容优先）
+V5 增加：
 
-对应实现见 [terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/terminal.js) 与元信息读取 [getMarkdownMeta](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/markdown.js)。
+- `TERMINAL_MAX_LINES`：最大保留行数
+- `TERMINAL_TRIM_TOP_LINES`：超过上限后一次裁剪的行数
 
-### 5.5 内容区也能“发命令”：统一交互入口为命令
+并在每次输出后触发裁剪（见 [terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/terminal.js) 与 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)）。
 
-V4 在内容区引入 `data-cmd` 机制：只要某个元素带 `data-cmd="cat /post/xxx"`，点击就会触发终端执行该命令（并可选回显）。
+### 5.5 统一“点击=命令”：降低学习成本
 
-收益：
+V5 继续强化 `data-cmd`：
 
-- 交互一致：点击并没有绕开终端逻辑，本质仍在执行命令
-- 更易上手：用户无需先记住命令语法，点一下就能浏览
+- 顶部“cd ..”使用 `.cmdButton`，与正文命令块风格统一（见 [index.html](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.html)）
+- 首页 Posts 标题旁注入 `cd /post` 快捷入口（见 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/contentRenderer.js)）
+- 评论区输入框点击/回车转发到终端执行 `say`（见 [comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/comments.js)）
 
-对应事件绑定见 [app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/app.js)。
-
-## 6. 核心流程（V4）
+## 6. 核心流程（V5）
 
 ### 6.1 页面启动流程
 
-入口 [app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/app.js) 在 `DOMContentLoaded` 后的流程：
+入口 [app.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/app.js) 的主要流程：
 
-1. 初始化评论区，并暴露 `window.__comments.add(text)`
-2. 从 `localStorage` 恢复主题（默认 dark）
-3. 创建内容渲染器（注入 `FILE_SYSTEM`），渲染 `DEFAULT_PAGE`（默认 `./post/index.md`）
-4. 创建终端（注入 `renderPath/applyTheme/readTheme`），启动并聚焦
-5. 监听内容区的 `data-cmd` 点击事件，转发给终端 `run()`
+1. 初始化评论区：`window.__comments = setupComments()`（返回 `{ add, setPage }`）
+2. 恢复主题（localStorage）并应用
+3. 创建内容渲染器：注入 `FILE_SYSTEM`，并通过 `onPathRendered` 把当前页面同步给评论模块
+4. 渲染默认页：`DEFAULT_PAGE = ./index.md`
+5. 创建终端：注入 `renderPath/applyTheme/readTheme`，启动并聚焦
+6. 监听全局点击：把内容区/按钮上的 `data-cmd` 转发给终端 `run()`
 
-### 6.2 渲染 Markdown：front matter → HTML → 模板
+### 6.2 评论加载与提交
 
-核心由 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/contentRenderer.js) 驱动：
+V5 的评论流程是“页面驱动”的：
 
-- 若目标为 `.md`：
-  - `getMarkdownDocument(url)` 解析 meta/title/date/body
-  - `markdownToHtml(body)` 得到基础 HTML
-  - `replaceHtmlPlaceholders(html, vars)` 注入动态片段
-  - `renderTemplate(template, { date, content })` 生成最终页面片段并注入内容区
-- 若目标为 `.html`：沿用 V3 的 `fetch + DOMParser`，保持兼容
-
-### 6.3 `cat/ls/cd` 的联动规则（面向用户体验）
-
-- `cat`：解析虚拟 FS → 打开目标 `.md/.html` → 内容区渲染 → 终端输出 `opened/failed`
-- `cd`：改变 `cwd` 后，会尝试自动渲染该目录下 `index.md`（优先）或 `index.html`（兜底）
-- `ls`：
-  - 根目录输出树形结构
-  - 进入目录后输出列表：目录按名称排序；文件在 `post/` 中按 `date` 优先排序
+- 内容渲染成功后调用 `onPathRendered(path)` → `window.__comments.setPage(path)`
+- `setPage()` 先使用本地缓存渲染，再后台同步 GitHub 最新评论并增量更新
+- `say` 命令调用 `window.__comments.add(text)`：先乐观插入，再写入 GitHub Issue comments，成功后回写缓存
 
 ## 7. 已知限制与取舍
 
-- `file://` 限制仍存在：Markdown/模板都依赖 `fetch`，建议使用本地静态服务器或部署到 Pages
-- Markdown 语法是子集：不支持表格、脚注、嵌套列表等复杂语法（可以按需要逐步扩展）
-- 占位符是“约定式能力”：`{{token}}` 仅在渲染阶段替换，不是通用模板引擎
-- 虚拟文件系统仍是“路由映射”：不会自动扫描目录，需要手动把内容纳入 `FILE_SYSTEM`
+- `file://` 限制仍存在：内容与模板依赖 `fetch`，建议使用本地静态服务器或部署到 Pages
+- GitHub 写入需要鉴权：浏览器侧无法真正“安全地保存 token”，任何放在前端的 token 都可能被获取；该方案更适合作为“个人站点的轻量留言板”，不适合承载敏感权限
+- GitHub API 受速率限制：频繁刷新/高访问量会触发 rate limit，缓存能缓解但无法消除
+- 仍是“显式虚拟 FS”：新增文章需把文件加入 `FILE_SYSTEM`（见 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js)）
 
-## 8. 扩展指南（以 V4 为基准）
+## 8. 扩展指南（以 V5 为基准）
 
 ### 8.1 新增一篇 Markdown 文章，并可在终端打开
 
@@ -211,39 +195,30 @@ V4 在内容区引入 `data-cmd` 机制：只要某个元素带 `data-cmd="cat /
 ```md
 ---
 title: Your Title
-date: 2026-03-16
+date: 2026-03-17
 ---
 ```
 
-3. 在 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/constants.js) 的 `FILE_SYSTEM.post` 增加映射
+3. 在 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/constants.js) 的 `FILE_SYSTEM.post` 增加映射
 4. 终端执行 `cd /post`，然后 `cat /post/YYYY-MM-DD-your-title`（可省略扩展名）
 
-### 8.2 在首页新增一个动态区块（占位符）
+### 8.2 调整首页展示
 
-1. 在 `post/index.md` 中加入 `{{yourToken}}`
-2. 在 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/contentRenderer.js) 的 `vars` 中提供 `yourToken` 对应的 HTML 字符串
+- 首页内容来自 [index.md](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/index.md)
+- 可用占位符由 [contentRenderer.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/contentRenderer.js) 提供：`aboutMe / postLatest / posts / cheatSheet / socialLinks`
 
-### 8.3 新增一个终端命令（建议做法）
+### 8.3 调整评论存储与策略
 
-1. 在 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/constants.js) 的 `CHEAT_SHEET` 增加命令说明
-2. 在 [terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/terminal.js) 中新增 `runXxx()` 并在 `handleCommand` 分发
+评论配置与存储逻辑集中在 [comments.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%205/modules/comments.js)：
 
-## 9. 下一步迭代
+- 仓库与 Issue 标题：`owner / repo / issueTitle`
+- 缓存策略：`CACHE_KEY / CACHE_VERSION / lastCreatedAt`
+- 页面标识：`toPageKey()`（决定“同一页”的定义）
 
-- 扩展 Markdown 语法：表格、任务列表、图片（带安全策略）
-- 输出性能优化：终端输出可设最大行数，达到最大行数清空上面一半的命令
-- 利用github issues，搭建真实评论系统，类似于Gitalk，对每一张markdown加载对应的评论内容。
-- 添加newmd.js，每次访问时自动搜索全部post下的md文件，并自动加入文件树映射。但是要添加缓存，减少每次打开网站时的卡顿与加载。
-- 开始适配自适应，适配不同窗口的大小
-- 对窗口宽度很小和手机端进行单独适配，渲染部分占垂直3/4，命令行部分占垂直1/4，评论放在渲染和命令行部分中间，默认隐藏，只保留一行^ Comments，其中^占单独一个li容器，当点击的时候展开Comments部分。具体操作为comments部分平滑向上平移展开，直到占据渲染部分位置，^ Comments改名为Comments.此时渲染部分隐藏，变为一行v Page，其中v占一个li容器。当点击时，渲染部分平滑向下展开，Comments容器平滑向下收起，直至只保留一行^ Comments.
-- 把现在的post/index.md变成/index.md，重写一个post/index.md，列出所有post
-- 添加标签页网站icon
-- 创建image文件夹作为图片存储, 文件树不映射image
-- 添加admin文件夹，作为管理界面，文件树不映射image，使用sha256加密后密码前端匹配，可以访问文件树（仅限aboutme, post和image文件夹），可以上传和删除文件。
-- 修改sudo彩蛋，当且仅当输入为sudo login时，跳转到admin页面
-- aboutme添加大头照
-- terminal在变成theme light时，变成#efefef
-- Latest Post旁边加上一个cd /post的li
-- email加上 Or just mailto:admin@2dogz.org
-- Blog-Chambers Z.改成Blog - Chambers Z.
+## 9. 下一步迭代建议（面向 Version 6+）
+
+- 评论“免 token”方案：使用 GitHub Discussions + OAuth/Serverless 中转，或使用第三方无后端评论组件
+- 内容系统增强：tags/分类页、站内搜索、RSS、相关文章推荐
+- Markdown 能力扩展：图片、表格、任务列表（配合安全策略与样式）
+- FILE_SYSTEM 自动化：用构建脚本或 GitHub Actions 生成目录索引，减少手工维护
 

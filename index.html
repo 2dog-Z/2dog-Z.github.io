@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Blog-Chambers Z.</title>
+    <title>Blog - Chambers Z.</title>
+    <link rel="icon" type="image/png" href="./image/icon.png" />
     <link id="themeStylesheet" rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -13,7 +14,7 @@
           <header class="contentHeader">
             <div class="contentHeaderRow">
               <h1 id="contentTitle" class="title">Hello World</h1>
-              <li class="contentHeaderNavItem" data-cmd="cd ..">cd ..</li>
+            <code class="cmdButton" data-cmd="cd .." title="goback">cd ..</code>
             </div>
           </header>
 
@@ -27,6 +28,19 @@
             <div class="sectionTitle">Comments</div>
           </div>
           <div id="commentsList" class="commentsList" role="list"></div>
+          <div class="commentsComposer">
+            <input
+              id="commentsInput"
+              class="commentsInput"
+              type="text"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              aria-label="Comment Input"
+              placeholder="Say something..."
+            />
+            <code id="commentsSayBtn" class="cmdButton" title="say">say</code>
+          </div>
         </aside>
       </section>
 

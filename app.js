@@ -31,7 +31,10 @@ window.addEventListener("DOMContentLoaded", () => {
    * 创建内容渲染器并渲染默认页面。
    * 目的：首屏内容区不为空，且后续 cat/cd 可以复用同一个渲染器。
    */
-  const renderer = createContentRenderer({ fileSystem: FILE_SYSTEM });
+  const renderer = createContentRenderer({
+    fileSystem: FILE_SYSTEM,
+    onPathRendered: (p) => window.__comments?.setPage?.(p),
+  });
   void renderer.renderPath(DEFAULT_PAGE);
 
   /**

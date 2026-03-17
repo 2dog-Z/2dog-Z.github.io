@@ -39,13 +39,14 @@ export const FILE_SYSTEM = {
     "2026-03-10-notes.md": "./post/2026-03-10-notes.md",
     "2026-02-28-links-and-format.md": "./post/2026-02-28-links-and-format.md",
   },
+  "index.md": "./index.md",
 };
 
 /**
  * 默认打开的页面（进入站点后内容区第一次渲染的文章）。
  * 功能：提供一个“落地页”内容，避免首次进入内容区为空。
  */
-export const DEFAULT_PAGE = "./post/index.md";
+export const DEFAULT_PAGE = "./index.md";
 
 /**
  * 主题在 localStorage 中使用的 key。
@@ -53,3 +54,5 @@ export const DEFAULT_PAGE = "./post/index.md";
  * 目的：提升一致性与用户体验，避免每次刷新都要重新切换。
  */
 export const THEME_STORAGE_KEY = "theme";
+export const TERMINAL_MAX_LINES = 100;
+export const TERMINAL_TRIM_TOP_LINES = 50;
