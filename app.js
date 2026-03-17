@@ -1,8 +1,9 @@
-import { DEFAULT_PAGE, FILE_SYSTEM, THEME_STORAGE_KEY } from "./modules/constants.js";
+import { DEFAULT_PAGE, FILE_SYSTEM, GITHUB_WORKER_ORIGIN, GITHUB_WORKER_PASS, GITHUB_WORKER_PASS_HEADER, THEME_STORAGE_KEY } from "./modules/constants.js";
 import { getCommentsGitHubRepo, setupComments } from "./modules/comments.js";
 import { createContentRenderer } from "./modules/contentRenderer.js";
 import { createTerminal } from "./modules/terminal.js";
 import { getTheme, setTheme } from "./modules/theme.js";
+import { githubApiUrlViaWorker } from "./modules/utils.js";
 
 /**
  * post 自动发现与缓存（增量）：
@@ -82,13 +83,23 @@ function mergePostsIntoFileSystem(fileSystem, names) {
  * - 支持 If-None-Match + ETag：目录列表没变时直接 304，避免传输与解析成本
  */
 async function fetchGithubPostMdList(config, options = {}) {
+  /**
+   * 通过 Worker 请求 GitHub Contents API（/contents/post）。
+   *
+   * 功能：
+   * - 前端始终不接触 token；
+   * - 只携带暗号 Header，Worker 校验通过后再向 GitHub 注入 token；
+   * - 仍支持 If-None-Match / ETag 以降低频繁访问的带宽与速率消耗。
+   */
   const headers = new Headers({
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   });
+  headers.set(GITHUB_WORKER_PASS_HEADER, GITHUB_WORKER_PASS);
   if (options.etag) headers.set("If-None-Match", options.etag);
   const url = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}/contents/post?per_page=100`;
-  const res = await window.fetch(url, { headers });
+  const proxyUrl = githubApiUrlViaWorker(url, GITHUB_WORKER_ORIGIN);
+  const res = await window.fetch(proxyUrl, { headers });
   if (res.status === 304) return { etag: options.etag ?? "", names: null };
   if (!res.ok) throw new Error(`GitHub API ${res.status}`);
   const etag = res.headers.get("ETag") || "";

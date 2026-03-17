@@ -54,9 +54,6 @@ export const DEFAULT_PAGE = "./index.md";
  * 目的：提升一致性与用户体验，避免每次刷新都要重新切换。
  */
 export const THEME_STORAGE_KEY = "theme";
-export const TERMINAL_MAX_LINES = 100;
-export const TERMINAL_TRIM_TOP_LINES = 50;
-
 /**
  * 终端输出裁剪策略。
  * 背景：终端会不断向 DOM 追加输出行，如果不做限制，长时间使用会造成页面越来越卡。
@@ -64,3 +61,37 @@ export const TERMINAL_TRIM_TOP_LINES = 50;
  * - 当输出行数达到 TERMINAL_MAX_LINES 时，从顶部移除 TERMINAL_TRIM_TOP_LINES 行
  * - 这样既能保留最近上下文，也能避免每次只删 1 行导致频繁 reflow
  */
+export const TERMINAL_MAX_LINES = 100;
+export const TERMINAL_TRIM_TOP_LINES = 50;
+
+/**
+ * GitHub API 的 Worker 中转站域名（前端只请求这个域名，不直接访问 api.github.com）。
+ *
+ * 功能：
+ * - 把所有对 GitHub API 的请求从浏览器侧“改道”到 Worker；
+ * - Worker 侧再注入 Authorization token 并转发给 GitHub。
+ *
+ * 目的：
+ * - 避免 token 出现在前端代码/网络面板/本地存储中；
+ * - 为后续加入更严格的鉴权/限流等策略预留入口。
+ */
+export const GITHUB_WORKER_ORIGIN = "https://blogtokenmixer.twodogz.workers.dev";
+
+/**
+ * 前端与 Worker 之间用于校验的“暗号 Header 名称”。
+ *
+ * 说明：
+ * - 这是一个最低成本的请求门禁：Worker 只有在该 Header 值匹配时才会注入 token；
+ * - Header 名称与值都属于“共享密钥”，不要把 Worker 当作公共代理暴露给未知来源。
+ */
+export const GITHUB_WORKER_PASS_HEADER = "X-2dogZ-Pass";
+
+/**
+ * 前端需要携带的“暗号”值（用于 Worker 的共享密钥校验）。
+ *
+ * 目的：
+ * - 把“能否使用 token”这件事从前端 token 暴露，收敛为一个简单的 header 校验；
+ * - 即便有人看到了前端代码，也只能得到暗号而不是 GitHub token（权限风险显著更低）。
+ */
+export const GITHUB_WORKER_PASS = "2dogZ-Pass";
+

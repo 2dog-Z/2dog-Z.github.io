@@ -110,3 +110,33 @@ export function listDir(fs, pathParts) {
   }
   return [...dirs.sort(), ...files.sort()];
 }
+
+/**
+ * 将 GitHub API 的 URL 重写为经由 Worker 的代理 URL。
+ *
+ * 输入支持：
+ * - 完整 URL：`https://api.github.com/...`
+ * - 绝对路径：`/repos/...`（会自动补成 `https://api.github.com/repos/...`）
+ *
+ * 重写规则：
+ * - 仅当 origin 为 `https://api.github.com` 时才重写为 `${workerOrigin}/gh...`
+ * - 其它 origin 原样返回，避免误伤非 GitHub 的请求
+ *
+ * 目的：
+ * - 让业务代码仍按“GitHub API URL”组织逻辑，但实际网络请求走 Worker；
+ * - 集中处理 Worker 域名配置与路径拼装，减少重复与遗漏。
+ */
+export function githubApiUrlViaWorker(input, workerOrigin) {
+  const origin = String(workerOrigin ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+  if (!origin || origin.includes("REPLACE_ME")) throw new Error("GitHub Worker not configured");
+
+  const s0 = String(input ?? "").trim();
+  if (!s0) return s0;
+
+  const s = s0.startsWith("/") ? `https://api.github.com${s0}` : s0;
+  const u = new URL(s, window.location.href);
+  if (u.origin !== "https://api.github.com") return u.toString();
+  return `${origin}/gh${u.pathname}${u.search}`;
+}

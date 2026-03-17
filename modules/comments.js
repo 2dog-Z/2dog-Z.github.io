@@ -1,4 +1,5 @@
-import { formatDate, randomNickname, sleep } from "./utils.js";
+import { GITHUB_WORKER_ORIGIN, GITHUB_WORKER_PASS, GITHUB_WORKER_PASS_HEADER } from "./constants.js";
+import { formatDate, githubApiUrlViaWorker, randomNickname, sleep } from "./utils.js";
 
 /**
  * 评论模块：负责右侧评论区的渲染与新增。
@@ -19,20 +20,14 @@ import { formatDate, randomNickname, sleep } from "./utils.js";
  * 安全提示：
  * - 浏览器端无法真正安全地保存 token；放在前端的 token 都可能被获取。
  * - 该方案更适合个人站点的轻量留言板，不适合承载高权限或敏感数据。
+ *
+ * 本版本的改造点：
+ * - 浏览器不再持有 GitHub token，而是改为请求 Cloudflare Worker；
+ * - Worker 校验暗号 Header 后，才向 GitHub API 注入 token 并转发请求。
  */
 const GITHUB = {
   owner: "2dog-Z",
   repo: "2dog-Z.github.io",
-  token: "githu"+
-  "b_p"+
-  "at_1"+
-  "1BNK7"+
-  "WAQ0"+
-  "OGDmorpo"+
-  "rXlq_3ii"+
-  "NSiIGQ2hW8lxV1Ke"+
-  "lWh506Y8tKWVo3YZb"+
-  "6xhFHOgW4IFJ5ODJ1KNWrsC",
   issueTitle: "blog_comments",
 };
 
@@ -157,16 +152,29 @@ function toTimeValue(item) {
 }
 
 async function githubRequestJson(url, options = {}) {
+  /**
+   * 统一的 GitHub API 请求入口（经由 Worker 中转）。
+   *
+   * 功能：
+   * - 自动补齐 GitHub API 推荐的 Accept / 版本头；
+   * - 自动添加暗号 Header（Worker 侧会校验，避免被当成开放代理）；
+   * - 把 `https://api.github.com/...` 重写为 `${GITHUB_WORKER_ORIGIN}/gh/...`；
+   * - 失败时把状态码与响应文本带出来，便于在终端/控制台排查。
+   *
+   * 思路：
+   * - 业务代码仍然“生成 GitHub API URL”，但实际网络请求永远走 Worker；
+   * - token 的注入完全发生在 Worker 中，前端不参与。
+   *
+   * 兼容说明：
+   * - `options.withAuth` 在旧实现里用于决定是否注入 Authorization；
+   * - 现在 Authorization 永远由 Worker 注入，因此该字段仅为兼容旧调用，已不再参与逻辑。
+   */
   const method = options.method ?? "GET";
   const headers = new Headers({
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   });
-
-  const withAuth = options.withAuth ?? "auto";
-  const shouldAuth =
-    withAuth === true || (withAuth === "auto" && GITHUB.token && typeof GITHUB.token === "string" && GITHUB.token.trim());
-  if (shouldAuth) headers.set("Authorization", `Bearer ${GITHUB.token}`);
+  headers.set(GITHUB_WORKER_PASS_HEADER, GITHUB_WORKER_PASS);
 
   let body;
   if (options.body != null) {
@@ -174,7 +182,8 @@ async function githubRequestJson(url, options = {}) {
     body = JSON.stringify(options.body);
   }
 
-  const res = await window.fetch(url, { method, headers, body });
+  const proxyUrl = githubApiUrlViaWorker(url, GITHUB_WORKER_ORIGIN);
+  const res = await window.fetch(proxyUrl, { method, headers, body });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`GitHub API ${res.status}: ${text || res.statusText}`);
@@ -216,7 +225,6 @@ async function getCommentsIssueNumber(options = {}) {
     }
 
     if (!createIfMissing) return null;
-    if (!GITHUB.token || GITHUB.token === "REPLACE_ME") return null;
 
     const createUrl = `https://api.github.com/repos/${encodeURIComponent(GITHUB.owner)}/${encodeURIComponent(GITHUB.repo)}/issues`;
     const created = await githubRequestJson(createUrl, {
@@ -370,7 +378,6 @@ async function syncStoredComments(options = {}) {
 async function postCommentToIssue(payload) {
   const issueNumber = await getCommentsIssueNumber({ createIfMissing: true });
   if (!issueNumber) throw new Error("comments issue not found");
-  if (!GITHUB.token || GITHUB.token === "REPLACE_ME") throw new Error("token not configured");
 
   const url = `https://api.github.com/repos/${encodeURIComponent(GITHUB.owner)}/${encodeURIComponent(
     GITHUB.repo
