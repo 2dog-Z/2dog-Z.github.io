@@ -132,6 +132,17 @@ function saveCache(cache) {
   }
 }
 
+/**
+ * 规范化缓存条目结构。
+ *
+ * 兼容目标：
+ * - 旧缓存（V6 及之前）：没有 commentId 字段
+ * - 新缓存（V7+）：会写入 GitHub issue comment id（commentId），用于后台精确删除
+ *
+ * 目的：
+ * - 让缓存结构随版本演进仍可读取
+ * - 让后续列表展示/排序/删除都基于统一字段集工作
+ */
 function normalizeCachedItem(x) {
   const stored = x && typeof x === "object" ? x : null;
   if (!stored) return null;
@@ -140,8 +151,10 @@ function normalizeCachedItem(x) {
   const text = String(stored.text ?? "").trim();
   const date = String(stored.date ?? "").trim();
   const createdAt = String(stored.createdAt ?? "").trim();
+  const commentIdRaw = stored.commentId;
+  const commentId = Number.isFinite(Number(commentIdRaw)) ? Number(commentIdRaw) : 0;
   if (!page || !name || !text) return null;
-  return { page, name, text, date, createdAt };
+  return { page, name, text, date, createdAt, commentId: commentId > 0 ? commentId : 0 };
 }
 
 function toTimeValue(item) {
@@ -149,6 +162,79 @@ function toTimeValue(item) {
   const d = raw ? new Date(raw) : null;
   const t = d && !Number.isNaN(d.getTime()) ? d.getTime() : 0;
   return t;
+}
+
+/**
+ * 构建“评论列表展示用”的稳定 id。
+ *
+ * 规则：
+ * - 优先使用 GitHub issue comment id（gh:123...），保证跨刷新仍稳定
+ * - 否则回退到 createdAt/page/name/text 的组合（兼容历史缓存/乐观插入）
+ *
+ * 目的：
+ * - 后台勾选/删除需要一个稳定的 key 来保持 UI 状态
+ * - 避免仅靠数组 index 导致刷新后错删/错选
+ */
+function buildCommentId(item) {
+  const commentId = Number(item?.commentId);
+  if (Number.isFinite(commentId) && commentId > 0) return `gh:${commentId}`;
+  const createdAt = String(item?.createdAt ?? "").trim();
+  const page = toPageKey(item?.page);
+  const name = String(item?.name ?? "").trim();
+  const text = String(item?.text ?? "").trim();
+  return `${createdAt}|${page}|${name}|${text}`;
+}
+
+/**
+ * 构建“缓存去重用”的 key。
+ *
+ * 说明：
+ * - commentId 存在时以它为准（最可靠）
+ * - commentId 不存在时，使用 createdAt/page/name/text 组合
+ *
+ * 目的：避免重复同步/重复插入导致缓存无限膨胀。
+ */
+function buildCacheKey(item) {
+  const commentId = Number(item?.commentId);
+  if (Number.isFinite(commentId) && commentId > 0) return `gh:${commentId}`;
+  return `${String(item?.createdAt ?? "").trim()}|${toPageKey(item?.page)}|${String(item?.name ?? "").trim()}|${String(item?.text ?? "").trim()}`;
+}
+
+function getCachedCommentsForPage(pageKey) {
+  const key = toPageKey(pageKey);
+  if (!key) return [];
+  const matched = cache.items
+    .filter((x) => x.page === key)
+    .map((x) => {
+      const t = toTimeValue(x);
+      const safeDate = t ? new Date(t) : new Date();
+      return {
+        id: buildCommentId(x),
+        commentId: Number(x.commentId) > 0 ? Number(x.commentId) : 0,
+        page: x.page,
+        name: x.name,
+        text: x.text,
+        createdAt: String(x.createdAt || x.date || "").trim(),
+        date: formatDate(safeDate),
+        t,
+      };
+    })
+    .sort((a, b) => b.t - a.t)
+    .map(({ t, ...rest }) => rest);
+  return matched;
+}
+
+function sameCommentList(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i];
+    const y = b[i];
+    if (!x || !y) return false;
+    if (x.id !== y.id) return false;
+  }
+  return true;
 }
 
 async function githubRequestJson(url, options = {}) {
@@ -278,11 +364,10 @@ function upsertIntoCache(next) {
 
   const existing = new Map();
   for (const it of cache.items) {
-    const key = `${it.createdAt}|${it.page}|${it.name}|${it.text}`;
-    existing.set(key, it);
+    existing.set(buildCacheKey(it), it);
   }
   for (const it of normalized) {
-    const key = `${it.createdAt}|${it.page}|${it.name}|${it.text}`;
+    const key = buildCacheKey(it);
     if (!existing.has(key)) {
       cache.items.push(it);
       existing.set(key, it);
@@ -315,7 +400,8 @@ async function syncStoredComments(options = {}) {
           const stored = parseStoredCommentBody(it?.body);
           if (!stored) return null;
           const createdAt = String(it?.created_at ?? "").trim();
-          return { ...stored, createdAt };
+          const commentId = Number(it?.id) || 0;
+          return { ...stored, createdAt, commentId };
         })
         .filter(Boolean);
       upsertIntoCache(parsed);
@@ -331,7 +417,8 @@ async function syncStoredComments(options = {}) {
         const stored = parseStoredCommentBody(it?.body);
         if (!stored) return null;
         const createdAt = String(it?.created_at ?? "").trim();
-        return { ...stored, createdAt };
+        const commentId = Number(it?.id) || 0;
+        return { ...stored, createdAt, commentId };
       })
       .filter(Boolean);
     upsertIntoCache(parsed1);
@@ -350,7 +437,8 @@ async function syncStoredComments(options = {}) {
                 const stored = parseStoredCommentBody(it?.body);
                 if (!stored) return null;
                 const createdAt = String(it?.created_at ?? "").trim();
-                return { ...stored, createdAt };
+                const commentId = Number(it?.id) || 0;
+                return { ...stored, createdAt, commentId };
               })
               .filter(Boolean);
             upsertIntoCache(parsed);
@@ -384,6 +472,130 @@ async function postCommentToIssue(payload) {
   )}/issues/${issueNumber}/comments`;
   const body = buildStoredCommentBody(payload);
   return await githubRequestJson(url, { method: "POST", withAuth: true, body: { body } });
+}
+
+/**
+ * 删除 GitHub issue comment（按 comment id）。
+ * 目的：为后台管理页提供真实“删除评论”的能力。
+ */
+async function deleteIssueCommentById(commentId) {
+  const id = Number(commentId);
+  if (!Number.isFinite(id) || id <= 0) throw new Error("invalid comment id");
+  const url = `https://api.github.com/repos/${encodeURIComponent(GITHUB.owner)}/${encodeURIComponent(GITHUB.repo)}/issues/comments/${id}`;
+  await githubRequestJson(url, { method: "DELETE", withAuth: true });
+  return true;
+}
+
+/**
+ * 从本地缓存移除指定 commentId 对应的评论条目。
+ *
+ * 注意：
+ * - 这里只处理 commentId > 0 的条目；历史缓存中没有 commentId 的条目无法精确定位
+ * - 删除后会落盘缓存并清理 allStoredCommentsPromise，确保下次读取走新缓存
+ */
+function removeCommentsFromCacheById(commentIds) {
+  const ids = Array.isArray(commentIds) ? commentIds : [];
+  const set = new Set(ids.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0));
+  if (set.size === 0) return 0;
+  const before = cache.items.length;
+  cache.items = cache.items.filter((x) => !set.has(Number(x?.commentId)));
+  const after = cache.items.length;
+  if (after !== before) saveCache(cache);
+  allStoredCommentsPromise = null;
+  return before - after;
+}
+
+/**
+ * 管理端复用：构建单条评论的 DOM 结构。
+ * 功能：与主站评论区保持一致的视觉结构（commentItem/commentMeta/...）。
+ * 目的：让后台管理页无需复制评论卡片的 DOM 拼装细节。
+ */
+export function createCommentElementForAdmin({ name, text, date }) {
+  return createCommentElement({ name, text, date });
+}
+
+/**
+ * 管理端复用：返回某个页面的“本地缓存评论列表”（不触发网络同步）。
+ *
+ * 输出字段：
+ * - id：稳定标识（用于勾选/删除等 UI 状态）
+ * - name/text/date/createdAt：用于展示与排序
+ *
+ * 目的：
+ * - 管理页切换下拉时先秒开缓存，避免空白等待
+ * - 与主站评论模块共享同一份 localStorage 缓存结构
+ */
+export function getCachedCommentsForAdmin(pageKey) {
+  return getCachedCommentsForPage(pageKey);
+}
+
+/**
+ * 管理端复用：同步拉取 GitHub 上的最新评论并合并进缓存。
+ * 目的：让后台管理页在“显示缓存”的基础上，再刷新到最新数据。
+ */
+export async function syncCommentsForAdmin(options = {}) {
+  const force = options.force ?? false;
+  return await syncStoredComments({ force, allowFullScan: true });
+}
+
+/**
+ * 管理端复用：以指定昵称新增评论（写入 GitHub issue comments）。
+ * 目的：让后台评论发布不依赖终端 say 命令。
+ */
+export async function addCommentForAdmin(options = {}) {
+  const page = toPageKey(options.page);
+  const name = String(options.name ?? "").trim();
+  const text = String(options.text ?? "").trim();
+  if (!page || !name || !text) return null;
+
+  const now = new Date();
+  const payload = { page, name, text, date: now.toISOString() };
+  const created = await postCommentToIssue(payload);
+  const createdAt = String(created?.created_at ?? payload.date).trim();
+  const commentId = Number(created?.id) || 0;
+  upsertIntoCache([{ ...payload, createdAt, commentId }]);
+  allStoredCommentsPromise = null;
+  const list = getCachedCommentsForPage(page);
+  return list[0] || null;
+}
+
+/**
+ * 管理端复用：删除一条或多条 GitHub issue comments。
+ *
+ * 输入：
+ * - commentIds：GitHub issue comment id 列表（数字）
+ *
+ * 输出：
+ * - okIds：成功删除的 id
+ * - failIds：删除失败的 id
+ *
+ * 目的：
+ * - 让后台管理页能够对“已选中的评论”做真实删除
+ * - 成功后同步更新本地缓存，保证 UI 与 GitHub 状态一致
+ */
+export async function deleteCommentsForAdmin(options = {}) {
+  const ids = Array.isArray(options.commentIds) ? options.commentIds : [];
+  const normalized = ids.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0);
+  if (normalized.length === 0) return { okIds: [], failIds: [] };
+
+  const results = await Promise.allSettled(normalized.map((id) => deleteIssueCommentById(id)));
+  const okIds = [];
+  const failIds = [];
+  for (let i = 0; i < results.length; i += 1) {
+    const id = normalized[i];
+    if (results[i].status === "fulfilled") okIds.push(id);
+    else failIds.push(id);
+  }
+  if (okIds.length > 0) removeCommentsFromCacheById(okIds);
+  return { okIds, failIds };
+}
+
+/**
+ * 管理端复用：比较两次列表是否一致。
+ * 目的：避免不必要的重渲染，保持切换/刷新时的平滑感。
+ */
+export function sameCommentsForAdmin(a, b) {
+  return sameCommentList(a, b);
 }
 
 /**
@@ -437,32 +649,6 @@ export function setupComments() {
     list.scrollTop = 0;
   }
 
-  function getPageComments(pageKey) {
-    const matched = cache.items
-      .filter((x) => x.page === pageKey)
-      .map((x) => {
-        const t = toTimeValue(x);
-        const safeDate = t ? new Date(t) : new Date();
-        return { name: x.name, text: x.text, date: formatDate(safeDate), t };
-      })
-      .sort((a, b) => b.t - a.t)
-      .map(({ name, text, date }) => ({ name, text, date }));
-    return matched;
-  }
-
-  function sameComments(a, b) {
-    if (a === b) return true;
-    if (!Array.isArray(a) || !Array.isArray(b)) return false;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i += 1) {
-      const x = a[i];
-      const y = b[i];
-      if (!x || !y) return false;
-      if (x.name !== y.name || x.text !== y.text || x.date !== y.date) return false;
-    }
-    return true;
-  }
-
   /**
    * 按页面 key 加载并渲染评论。
    * 功能：
@@ -494,7 +680,7 @@ export function setupComments() {
       emptyState.textContent = emptyText;
       emptyState.hidden = false;
     }, 3000);
-    const before = getPageComments(pageKey);
+    const before = getCachedCommentsForPage(pageKey);
     renderComments(before);
     window.requestAnimationFrame(() => {
       list.classList.remove("switching");
@@ -502,9 +688,9 @@ export function setupComments() {
     try {
       await syncStoredComments({ force: false, allowFullScan: true });
       if (seq !== loadSeq) return;
-      const after = getPageComments(pageKey);
+      const after = getCachedCommentsForPage(pageKey);
       if (after.length === 0) emptyState.textContent = emptyText;
-      if (!sameComments(before, after)) renderComments(after);
+      if (!sameCommentList(before, after)) renderComments(after);
     } catch (e) {
       if (seq !== loadSeq) return;
       console.warn("[comments] load failed", e);
@@ -530,7 +716,8 @@ export function setupComments() {
       try {
         const created = await postCommentToIssue(payload);
         const createdAt = String(created?.created_at ?? payload.date).trim();
-        upsertIntoCache([{ ...payload, createdAt }]);
+        const commentId = Number(created?.id) || 0;
+        upsertIntoCache([{ ...payload, createdAt, commentId }]);
         allStoredCommentsPromise = null;
         return true;
       } catch (e) {

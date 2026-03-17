@@ -1,0 +1,291 @@
+:root {
+  /*
+    Admin 局部变量：
+    - 只控制管理页自身布局尺寸，不改动主站主题变量
+    - 目的：保持与主站视觉一致，同时让登录卡片在大屏不过宽
+  */
+  --adminLoginMaxWidth: 520px;
+  --adminPanelMaxWidth: 980px;
+}
+
+body {
+  /* 管理页使用全高布局，让登录卡片始终垂直居中 */
+  min-height: 100vh;
+}
+
+.adminLayout {
+  /* 页面容器：居中显示登录/管理壳层 */
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.adminStage {
+  /*
+    两阶段容器（登录/管理）：
+    - 默认隐藏（opacity 0 + pointer-events none）
+    - 通过 .adminStageActive 切换可见
+    - 目的：登录后不跳转，用淡入/位移完成平滑过渡
+  */
+  --adminStageMaxWidth: var(--adminLoginMaxWidth);
+  --adminStageShiftX: 0px;
+  width: min(var(--adminStageMaxWidth), calc(100vw - 36px));
+  overflow: hidden;
+  opacity: 0;
+  transform: translate(var(--adminStageShiftX), 10px);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+#adminStage.adminStage {
+  /* 管理面板阶段：允许更宽一些，容纳管理布局（标签页/列表等） */
+  --adminStageMaxWidth: var(--adminPanelMaxWidth);
+  --adminStageShiftX: -36px;
+  max-height: calc(100vh - 36px);
+}
+
+.adminStageActive {
+  /* 激活态：显示并允许交互 */
+  opacity: 1;
+  transform: translate(var(--adminStageShiftX), 0);
+  pointer-events: auto;
+}
+
+.adminHeader {
+  /* 顶部标题栏：复用主站 panel 风格的渐变与分割线 */
+  padding: 18px 18px 10px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0));
+}
+
+.adminTitle {
+  /* 管理页标题：比主站大标题更克制 */
+  font-size: 36px;
+}
+
+.adminSubtitle {
+  /* 次级提示文本：用于登录说明/状态文案 */
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.adminBody {
+  /* 内容区：输入框 + 登录按钮 + 提示文本 */
+  padding: 14px 18px 18px;
+}
+
+.adminRow {
+  /* 登录行：输入框与按钮并排 */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adminPassword {
+  /* 统一输入字号，保持与评论输入风格一致 */
+  font-size: 13px;
+}
+
+.adminHint {
+  /* 提示文案区域：预留高度避免布局抖动 */
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 18px;
+}
+
+.adminHintError {
+  /* 错误态提示：偏红但不过分刺眼 */
+  color: rgba(255, 160, 160, 0.92);
+}
+
+.adminViewport {
+  /* 管理壳层容器：后续管理功能都渲染到这里 */
+  padding: 18px;
+}
+
+.adminViewportFull {
+  /* 壳层模式：让顶栏贴合 panel 边缘，由内部组件自行控制内边距 */
+  padding: 0;
+}
+
+.adminShell {
+  /* 管理系统外壳：顶部浏览器栏 + 下方页面内容 */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.adminBrowserBar {
+  /* 顶部浏览器栏：仿浏览器的标签页区域，作为两个模块的导航入口 */
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0));
+}
+
+.adminTabs {
+  /* 标签列表：保持间距克制，贴近主站的胶囊按钮风格 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.adminTab {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(212, 212, 212, 0.92);
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.adminTab:hover {
+  border-color: rgba(86, 156, 214, 0.45);
+  background: rgba(86, 156, 214, 0.08);
+}
+
+.adminTabActive {
+  border-color: rgba(86, 156, 214, 0.55);
+  background: rgba(86, 156, 214, 0.12);
+  color: rgba(212, 212, 212, 0.98);
+}
+
+.adminBodyViewport {
+  /* 页面内容容器：允许内部列表滚动 */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.adminPage {
+  /* 单页容器：与主站 comments/content 的纵向结构一致 */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+}
+
+.adminPageHeader {
+  /*
+    头部三列布局：
+    - 左：页面标题
+    - 中：下拉列表（视觉居中）
+    - 右：操作按钮（删除）
+  */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.adminPageTitle {
+  /* 左侧标题：更克制的强调，不抢主内容 */
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.adminPageActions {
+  /* 右侧操作：保持按钮与右对齐 */
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.adminSelect {
+  /* 下拉列表：对齐 commentsInput 的质感与字号 */
+  max-width: min(520px, calc(100vw - 160px));
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.adminSelect:focus {
+  border-color: rgba(86, 156, 214, 0.55);
+}
+
+.adminCommentsCenter {
+  /* 中部列表容器：独立边框 + 内部滚动 */
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel2);
+}
+
+.adminCommentsList {
+  /* 复用 commentsList：保持滚动与过渡效果 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.adminCommentRow {
+  /* 一条评论：复选框 + commentItem 并排 */
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.adminCommentCheck {
+  /* 复选框：用 accent-color 贴近主站强调色 */
+  width: 16px;
+  height: 16px;
+  margin-top: 12px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.adminWorking {
+  /* 文件管理占位：居中提示 */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.adminFootnote {
+  /* 底部轻提示：说明当前为 demo */
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 无动效偏好：关闭切换动画 */
+  .adminStage {
+    transition: none;
+  }
+}

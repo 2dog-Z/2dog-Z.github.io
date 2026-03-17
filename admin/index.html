@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin - Chambers Z.</title>
+    <link rel="icon" type="image/png" href="../image/icon.png" />
+    <!--
+      说明：
+      - 管理页复用主站主题变量与字体（../styles.css / ../styles.light.css）
+      - 仅当登录成功后才会动态加载管理界面模块（adminView.js），从而在未登录时不出现在 Resources 里
+    -->
+    <link id="themeStylesheet" rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <!--
+      管理页结构：
+      - loginStage：静态登录界面（默认可见）
+      - adminStage：管理容器（默认隐藏，登录后平滑过渡显示）
+    -->
+    <main class="adminLayout" aria-label="Admin">
+      <section id="loginStage" class="panel adminStage adminStageActive" aria-label="Login">
+        <header class="adminHeader">
+          <h1 class="title adminTitle">Admin</h1>
+          <div class="adminSubtitle">Sign in to continue</div>
+        </header>
+        <div class="adminBody">
+          <div class="adminRow">
+            <input
+              id="adminPassword"
+              class="commentsInput adminPassword"
+              type="password"
+              autocomplete="current-password"
+              aria-label="Admin Password"
+              placeholder="Password"
+            />
+            <code id="adminLoginBtn" class="cmdButton" title="login">login</code>
+          </div>
+          <div id="adminHint" class="adminHint" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="adminStage" class="panel adminStage" aria-label="Admin Panel">
+        <div id="adminViewport" class="adminViewport"></div>
+      </section>
+    </main>
+
+    <!-- 入口脚本：负责登录校验 + 动态加载管理界面 -->
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

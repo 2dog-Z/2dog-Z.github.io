@@ -1,6 +1,6 @@
-import { CHEAT_SHEET, DEFAULT_PAGE, FILE_SYSTEM, TERMINAL_MAX_LINES, TERMINAL_TRIM_TOP_LINES } from "./constants.js";
+import { ADMIN_AUTH_WORKER_ORIGIN, CHEAT_SHEET, DEFAULT_PAGE, FILE_SYSTEM, TERMINAL_MAX_LINES, TERMINAL_TRIM_TOP_LINES } from "./constants.js";
 import { getMarkdownMeta } from "./markdown.js";
-import { joinPath, resolveDir, sleep, stripFileExtension, tokenize } from "./utils.js";
+import { joinPath, resolveDir, sha256Hex, sleep, stripFileExtension, tokenize } from "./utils.js";
 
 /**
  * 交互式终端模块：负责“下方终端区域”的所有交互与渲染。
@@ -562,6 +562,94 @@ export function createTerminal(options = {}) {
   }
 
   /**
+   * Admin 鉴权 Worker 配置（供 sudo login 使用）。
+   *
+   * 说明：
+   * - 仅用于发起登录与会话校验请求；不会把 Worker 的密钥暴露到浏览器侧
+   * - token 会写入 /admin 路径下的会话 Cookie，确保跳转后 admin 页面可直接读取并进入壳层
+   */
+  const ADMIN_LOGIN_PATH = "/admin/login";
+  const ADMIN_TOKEN_STORAGE_KEY = "tdpb_admin_token_v1";
+  const ADMIN_TOKEN_COOKIE_NAME = "tdpb_admin_token_v1";
+
+  /**
+   * 规范化 Admin 鉴权 Worker origin。
+   * 目的：避免尾部斜杠/空字符串造成的 URL 拼接异常。
+   */
+  function adminWorkerOrigin() {
+    const o = String(ADMIN_AUTH_WORKER_ORIGIN ?? "")
+      .trim()
+      .replace(/\/+$/, "");
+    return o || window.location.origin;
+  }
+
+  /**
+   * 拼接 Admin Worker 接口地址。
+   * 目的：统一 origin + path 的拼装，降低漏写斜杠的风险。
+   */
+  function adminEndpoint(path) {
+    const p = String(path ?? "");
+    return `${adminWorkerOrigin()}${p.startsWith("/") ? p : `/${p}`}`;
+  }
+
+  /**
+   * 写入/清除 admin token（sessionStorage）。
+   * 目的：让 /admin 页面在同一会话内刷新时更快恢复登录态。
+   */
+  function writeAdminTokenToSession(token) {
+    try {
+      if (!token) window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+      else window.sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+    } catch {
+      return;
+    }
+  }
+
+  /**
+   * 写入/清除 admin token（会话 Cookie）。
+   *
+   * 说明：
+   * - Path=/admin：只影响管理路径
+   * - 不设置 Expires/Max-Age：保持“关闭浏览器后通常失效”的会话特性
+   *
+   * 目的：从主站 sudo login 进入 /admin 时，admin 页无需再次输入密码即可进入壳层。
+   */
+  function writeAdminTokenCookie(token) {
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    if (!token) {
+      document.cookie = `${ADMIN_TOKEN_COOKIE_NAME}=; Path=/admin; Max-Age=0; SameSite=Strict${secure}`;
+      return;
+    }
+    document.cookie = `${ADMIN_TOKEN_COOKIE_NAME}=${encodeURIComponent(String(token))}; Path=/admin; SameSite=Strict${secure}`;
+  }
+
+  /**
+   * 跳转到 admin 页面。
+   * 目的：保持路径相对安全，避免手写字符串时被 base href/当前路径影响。
+   */
+  function goToAdminPage() {
+    const url = new URL("./admin/", window.location.href);
+    window.location.href = url.toString();
+  }
+
+  /**
+   * 使用 sudo login <password> 发起管理员登录。
+   * 目的：复用与 /admin 登录页一致的 Worker 协议（passwordHash -> token）。
+   */
+  async function loginAdminWithPassword(password) {
+    const passwordHash = await sha256Hex(password);
+    const res = await window.fetch(adminEndpoint(ADMIN_LOGIN_PATH), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ passwordHash }),
+    });
+    if (!res.ok) return { ok: false, token: "" };
+    const json = await res.json().catch(() => null);
+    const token = json && typeof json === "object" && typeof json.token === "string" ? json.token : "";
+    return { ok: Boolean(token), token };
+  }
+
+  /**
    * sudo 彩蛋。
    * 功能：模拟提升权限的“剧情”，临时锁定输入并播放逐字输出。
    * 目的：增加趣味性，同时展示终端渲染能力（逐字输出/锁定输入/提示符变化）。
@@ -590,6 +678,56 @@ export function createTerminal(options = {}) {
   }
 
   /**
+   * sudo login：进入管理界面。
+   *
+   * 行为约定：
+   * - sudo / sudo <not login>：沿用原 sudo 彩蛋
+   * - sudo login：提示符切为 root@blog 并跳转到 /admin
+   * - sudo login <password>：用该密码尝试登录，成功后写入 token（/admin Cookie + sessionStorage）再跳转
+   */
+  async function runSudoLogin(args, options = {}) {
+    const { prevUser } = options;
+    const rest = String(args ?? "").trim();
+    if (!rest || rest === "login") {
+      goToAdminPage();
+      return;
+    }
+
+    const password = rest.startsWith("login") ? rest.slice("login".length).trim() : "";
+    if (!password) {
+      goToAdminPage();
+      return;
+    }
+
+    isLocked = true;
+    setInputEnabled(false);
+    appendLineInstant("sudo: checking credentials...", "dim");
+
+    let ok = false;
+    let token = "";
+    try {
+      const res = await loginAdminWithPassword(password);
+      ok = Boolean(res.ok);
+      token = res.token;
+    } catch {
+      ok = false;
+    }
+
+    if (!ok) {
+      appendLineInstant("sudo: authentication failed", "dim");
+      user = prevUser;
+      setPrompt();
+      isLocked = false;
+      setInputEnabled(true);
+      return;
+    }
+
+    writeAdminTokenToSession(token);
+    writeAdminTokenCookie(token);
+    goToAdminPage();
+  }
+
+  /**
    * 统一的命令入口：回显用户输入 -> 分发到具体命令处理 -> 输出结果。
    * 目的：把“解析/路由/回显/历史记录”集中在一起，命令实现只关注自身业务。
    */
@@ -598,12 +736,28 @@ export function createTerminal(options = {}) {
     const { cmd, args } = tokenize(raw);
     if (!cmd) return;
 
+    const prevUser = user;
+    const sudoArgs = String(args ?? "").trim();
+    const isSudoLogin = cmd === "sudo" && (sudoArgs === "login" || sudoArgs.startsWith("login "));
+    /**
+     * sudo login 的提示符策略：
+     * - 只对当前命令回显临时切换为 root
+     * - 不做持久化（刷新/下次进入仍是 guest）
+     */
+    if (isSudoLogin) {
+      user = "root";
+      setPrompt();
+    }
+
     if (typeEcho) await typewriter(`${prompt.textContent} ${raw}`, { variant: "green", speedMs: 7, lineDelayMs: 0 });
     else appendLineInstant(`${prompt.textContent} ${raw}`, "green");
     history.push(raw);
     historyIndex = history.length;
 
-    if (cmd === "sudo") return await runSudoEasterEgg();
+    if (cmd === "sudo") {
+      if (!isSudoLogin) return await runSudoEasterEgg();
+      return await runSudoLogin(sudoArgs, { prevUser });
+    }
     if (cmd === "help") return await printHelp();
     if (cmd === "clear") {
       output.textContent = "";

@@ -95,3 +95,11 @@ export const GITHUB_WORKER_PASS_HEADER = "X-2dogZ-Pass";
  */
 export const GITHUB_WORKER_PASS = "2dogZ-Pass";
 
+/**
+ * Admin 登录鉴权 Worker 的域名（主站 sudo login 与 /admin 页共用）。
+ *
+ * 说明：
+ * - 管理域与 Worker 不同域时，前端需要直连该 Worker 进行登录校验与会话验证
+ * - 仅是服务地址，不属于敏感密钥；真正的密码哈希与会话签名密钥只应保存在 Worker 端
+ */
+export const ADMIN_AUTH_WORKER_ORIGIN = "https://blogadmintry.twodogz.workers.dev";

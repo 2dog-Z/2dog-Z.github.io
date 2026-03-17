@@ -14,6 +14,30 @@ export function sleep(ms) {
 }
 
 /**
+ * 将字节数组转为十六进制字符串。
+ * 功能：Uint8Array -> "a1b2c3..."
+ * 目的：用于把 WebCrypto 的 digest/sign 输出转成可传输/可比对的文本形式。
+ */
+export function bytesToHex(bytes) {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let out = "";
+  for (let i = 0; i < arr.length; i += 1) out += arr[i].toString(16).padStart(2, "0");
+  return out;
+}
+
+/**
+ * SHA-256（hex）。
+ * 功能：对输入文本做 SHA-256，并返回小写十六进制字符串。
+ * 目的：用于前端把密码做“不可逆摘要”后再发送到 Worker，比直接传明文更安全。
+ */
+export async function sha256Hex(text) {
+  const enc = new TextEncoder();
+  const data = enc.encode(String(text ?? ""));
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return bytesToHex(digest);
+}
+
+/**
  * 生成随机昵称（用于评论区的匿名用户）。
  * 功能：生成可读的随机字符串，形如 "abcd12_x9k3"。
  * 目的：让示例评论看起来更像真实用户，而不是一堆重复的 placeholder。
