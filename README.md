@@ -110,6 +110,12 @@ V7 不引入新后端或新存储，而是复用 V6 的评论存储方案：
 - `commentId`：同步时从 GitHub 返回的 comment `id` 写入缓存（用于 DELETE）
 - `deleteCommentsForAdmin()`：按 commentId 调 GitHub API 删除，并同步清理本地缓存
 
+删除一致性补充（V7.1）：
+
+- 问题：GitHub comments API 的 `since` 增量拉取无法感知“删除”，因此其他用户的浏览器可能继续显示已删除评论（localStorage 里还缓存着）
+- 解决：comments 模块增加“定期全量对账”机制（扫描前 20 页并重建缓存），从而清理本地残留的已删除评论
+- 取舍：对账请求更重，因此做了节流（默认约 60s 内最多触发一次）
+
 对应实现：
 
 - commentId 与去重 key：`normalizeCachedItem()` / `buildCommentId()` / `buildCacheKey()`（[modules/comments.js](/modules/comments.js)）
@@ -153,4 +159,3 @@ V7 不引入新后端或新存储，而是复用 V6 的评论存储方案：
 
 - 文件管理：上传/下载/删除/目录权限控制（复用 Worker 链路）
 - sudo login 彩蛋与跳转到 admin（V6 文档中的下一步建议）
-

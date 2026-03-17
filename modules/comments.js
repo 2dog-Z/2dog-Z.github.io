@@ -281,10 +281,13 @@ async function githubRequestJson(url, options = {}) {
 let issueNumberPromise = null;
 let syncPromise = null;
 let lastSyncAtMs = 0;
+let lastReconcileAtMs = 0;
 let cache = loadCache();
 cache.items = cache.items.map(normalizeCachedItem).filter(Boolean);
 cache.items.sort((a, b) => toTimeValue(b) - toTimeValue(a));
 saveCache(cache);
+
+const RECONCILE_INTERVAL_MS = 60_000;
 
 async function getCommentsIssueNumber(options = {}) {
   const { createIfMissing = false } = options;
@@ -358,6 +361,47 @@ async function fetchIssueCommentsPage(issueNumber, options = {}) {
   return Array.isArray(items) ? items : [];
 }
 
+/**
+ * 全量对账并重建评论缓存（用于处理“远端删除，但本地仍缓存”的一致性问题）。
+ *
+ * 背景：
+ * - GitHub comments API 的增量拉取（since）只能发现“新增/更新”，无法发现“删除”
+ * - 如果某条评论在后台被删除，其他用户浏览器的 localStorage 缓存仍会保留它
+ *
+ * 思路：
+ * - 定期做一次全量扫描（按页最多扫描 20 页），以 GitHub 当前返回的评论列表为准
+ * - 解析并重建 cache.items，从而把已被删除的 comment 从本地缓存中清理掉
+ *
+ * 取舍：
+ * - 全量扫描需要更多请求，因此做了节流（RECONCILE_INTERVAL_MS）
+ * - 扫描页数有限（最多 20 页），更早的历史评论可能不会进入缓存展示
+ */
+async function reconcileCacheByFullScan(issueNumber) {
+  const next = [];
+  for (let p = 1; p <= 20; p += 1) {
+    const batch = await fetchIssueCommentsPage(issueNumber, { page: p });
+    if (batch.length === 0) break;
+    for (const it of batch) {
+      const stored = parseStoredCommentBody(it?.body);
+      if (!stored) continue;
+      const createdAt = String(it?.created_at ?? "").trim();
+      const commentId = Number(it?.id) || 0;
+      next.push({ ...stored, createdAt, commentId });
+    }
+    if (batch.length < 100) break;
+  }
+
+  const normalized = next.map(normalizeCachedItem).filter(Boolean);
+  normalized.sort((a, b) => toTimeValue(b) - toTimeValue(a));
+  cache.items = normalized;
+  cache.lastCreatedAt = cache.items[0]?.createdAt || "";
+  saveCache(cache);
+  allStoredCommentsPromise = null;
+  lastSyncAtMs = Date.now();
+  lastReconcileAtMs = Date.now();
+  return cache.items;
+}
+
 function upsertIntoCache(next) {
   const normalized = next.map(normalizeCachedItem).filter(Boolean);
   if (normalized.length === 0) return;
@@ -391,6 +435,21 @@ async function syncStoredComments(options = {}) {
   syncPromise = (async () => {
     const issueNumber = await getCommentsIssueNumber({ createIfMissing: false });
     if (!issueNumber) return cache.items;
+
+    /**
+     * 删除一致性对账（可选）。
+     * 目的：当后台删除评论后，其他用户的本地缓存也能在下一次刷新/切页时被动清理。
+     */
+    if (allowFullScan && (force || now - lastReconcileAtMs > RECONCILE_INTERVAL_MS)) {
+      if (force) {
+        return await reconcileCacheByFullScan(issueNumber);
+      }
+      window.setTimeout(() => {
+        void reconcileCacheByFullScan(issueNumber).catch((e) => {
+          console.warn("[comments] reconcile failed", e);
+        });
+      }, 0);
+    }
 
     const since = cache.lastCreatedAt ? cache.lastCreatedAt : "";
     if (since) {
