@@ -557,9 +557,12 @@ function createFilesManagementView() {
   const editorHeader = document.createElement("div");
   editorHeader.className = "adminEditorHeader";
 
-  const editorTitle = document.createElement("div");
-  editorTitle.className = "adminEditorTitle";
-  editorTitle.textContent = "Edit";
+  const editorTitleInput = document.createElement("input");
+  editorTitleInput.className = "adminEditorTitleInput";
+  editorTitleInput.type = "text";
+  editorTitleInput.value = "";
+  editorTitleInput.placeholder = "filename";
+  editorTitleInput.setAttribute("aria-label", "Filename");
 
   const editorActions = document.createElement("div");
   editorActions.className = "adminEditorActions";
@@ -574,7 +577,7 @@ function createFilesManagementView() {
   editorCloseBtn.textContent = "close";
   editorActions.appendChild(editorCloseBtn);
 
-  editorHeader.appendChild(editorTitle);
+  editorHeader.appendChild(editorTitleInput);
   editorHeader.appendChild(editorActions);
 
   const editorTextarea = document.createElement("textarea");
@@ -1386,7 +1389,7 @@ function createFilesManagementView() {
   function closeEditor() {
     editor.hidden = true;
     editorTextarea.value = "";
-    editorTitle.textContent = "Edit";
+    editorTitleInput.value = "";
     currentEditing = null;
     isEditing = false;
     setActionsEnabled();
@@ -1419,9 +1422,9 @@ function createFilesManagementView() {
         const meta = await getFileFromGitHub(repoPath);
         const bytes = meta.encoding === "base64" ? base64ToBytes(meta.content) : base64ToBytes(meta.content);
         const text = new TextDecoder().decode(bytes);
-        currentEditing = { repoPath, name: it.name, sha: meta.sha };
+        currentEditing = { originalRepoPath: repoPath, originalName: it.name, originalSha: meta.sha };
         editorTextarea.value = text;
-        editorTitle.textContent = it.name || "Edit";
+        editorTitleInput.value = it.name || "";
         editor.hidden = false;
         isEditing = true;
         setActionsEnabled();
@@ -1438,22 +1441,28 @@ function createFilesManagementView() {
   }
 
   /**
-   * 保存编辑结果：
-   * - 先将当前文本下载为同名文件（本地备份）
-   * - 再通过 PUT 覆盖更新 GitHub 文件内容
+   * 保存编辑结果。
+   *
+   * 规则：
+   * - 文件名未变：直接 PUT 覆盖更新旧文件
+   * - 文件名改变：先以新文件名 PUT 上传，再 DELETE 旧文件
    */
   function saveEditing() {
     void (async () => {
       if (!isEditing || !currentEditing) return;
       if (isBusy) return;
-      const repoPath = String(currentEditing.repoPath ?? "").trim();
-      const name = String(currentEditing.name ?? "").trim() || "edit.txt";
-      const sha = String(currentEditing.sha ?? "").trim();
-      if (!repoPath) return;
-      if (!sha) return;
+      const oldRepoPath = String(currentEditing.originalRepoPath ?? "").trim();
+      const oldName = String(currentEditing.originalName ?? "").trim();
+      const oldSha = String(currentEditing.originalSha ?? "").trim();
+      const nextName = String(editorTitleInput.value ?? "").trim();
+      if (!oldRepoPath) return;
+      if (!oldSha) return;
+      if (!nextName) return;
+      if (nextName.includes("/") || nextName.includes("\\")) return;
+      if (!isTextEditableFilename(nextName)) return;
+      if (!canWriteFileAtKey(currentKey, nextName)) return;
 
       const text = String(editorTextarea.value ?? "");
-      downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), name);
 
       isBusy = true;
       setActionsEnabled();
@@ -1461,9 +1470,41 @@ function createFilesManagementView() {
       try {
         const bytes = new TextEncoder().encode(text);
         const b64 = bytesToBase64(bytes);
-        const res = await putFileToGitHub(repoPath, b64, { sha, message: `admin edit ${repoPath}` });
-        const nextSha = String(res?.content?.sha ?? "").trim();
-        if (nextSha) currentEditing.sha = nextSha;
+        if (nextName === oldName) {
+          const res = await putFileToGitHub(oldRepoPath, b64, { sha: oldSha, message: `admin edit ${oldRepoPath}` });
+          const nextSha = String(res?.content?.sha ?? "").trim();
+          if (nextSha) currentEditing.originalSha = nextSha;
+          setHint("Successful", { ttlMs: 1400 });
+          await smoothRenderForKey(currentKey);
+          return;
+        }
+
+        const nextRepoPath = fileRepoPathForUpload(currentKey, nextName);
+        if (!nextRepoPath) throw new Error("Invalid filename");
+
+        let nextSha = "";
+        try {
+          const meta = await getFileFromGitHub(nextRepoPath);
+          nextSha = String(meta?.sha ?? "").trim();
+        } catch (e) {
+          const status = Number(e?.status);
+          if (status !== 404) throw e;
+          nextSha = "";
+        }
+
+        const res = await putFileToGitHub(nextRepoPath, b64, { sha: nextSha, message: `admin rename ${oldRepoPath} -> ${nextRepoPath}` });
+        const uploadedSha = String(res?.content?.sha ?? "").trim();
+        await deleteFileOnGitHub(oldRepoPath, oldSha, { message: `admin delete ${oldRepoPath}` });
+
+        const node = nodeForKey(currentKey);
+        if (node && typeof node === "object") {
+          if (oldName) delete node[oldName];
+          node[nextName] = `./${nextRepoPath}`;
+        }
+
+        currentEditing.originalName = nextName;
+        currentEditing.originalRepoPath = nextRepoPath;
+        if (uploadedSha) currentEditing.originalSha = uploadedSha;
         setHint("Successful", { ttlMs: 1400 });
         await smoothRenderForKey(currentKey);
       } catch (e) {
@@ -1670,6 +1711,22 @@ function createFilesManagementView() {
   });
   editorSaveBtn.addEventListener("click", () => {
     saveEditing();
+  });
+  editorTitleInput.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      saveEditing();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeEditor();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      editorTextarea.focus();
+    }
   });
   editorTextarea.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {

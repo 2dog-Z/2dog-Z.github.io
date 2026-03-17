@@ -286,6 +286,10 @@ body {
   z-index: 5;
 }
 
+.adminEditor[hidden] {
+  display: none;
+}
+
 .adminEditorHeader {
   display: flex;
   align-items: center;
@@ -294,14 +298,21 @@ body {
   min-width: 0;
 }
 
-.adminEditorTitle {
-  font-size: 12px;
-  letter-spacing: 0.2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.adminEditorTitleInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.adminEditorTitleInput:focus {
+  border-color: rgba(86, 156, 214, 0.55);
 }
 
 .adminEditorActions {
