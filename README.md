@@ -228,10 +228,15 @@ date: 2026-03-16
 1. 在 [constants.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/constants.js) 的 `CHEAT_SHEET` 增加命令说明
 2. 在 [terminal.js](file:///c:/Users/zcb19/Desktop/TDPB/%E5%BC%80%E5%8F%91/Version%204/modules/terminal.js) 中新增 `runXxx()` 并在 `handleCommand` 分发
 
-## 9. 下一步迭代建议（面向 Version 5+）
+## 9. 下一步迭代
 
 - 扩展 Markdown 语法：表格、任务列表、图片（带安全策略）
-- 增强内容系统：tags/分类页、更多“Latest Posts”展示、站内搜索
-- 评论可选持久化：写入 `localStorage` 并提供 `clear-comments` 命令
-- 输出性能优化：终端输出可设最大行数，避免 DOM 长期增长
+- 输出性能优化：终端输出可设最大行数，达到最大行数清空上面一半的命令
+- 利用github issues，搭建真实评论系统，类似于Gitalk
+- 添加newmd.js，每次访问时自动搜索全部post下的md文件，并自动加入文件树映射
+- 把现在的post/index.md变成/index.md，重写一个post/index.md，列出所有post
+- terminal在变成theme light时，变成#efefef
+- Latest Post旁边加上一个cd /post的li
+- email加上 Or just mailto:admin@2dogz.org
+- Blog-Chambers Z.改成Blog - Chambers Z.
 
