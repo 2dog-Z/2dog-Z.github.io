@@ -273,6 +273,64 @@ body {
   padding-bottom: 52px;
 }
 
+.adminEditor {
+  position: absolute;
+  inset: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  z-index: 5;
+}
+
+.adminEditorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adminEditorTitle {
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adminEditorActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.adminEditorTextarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  outline: none;
+}
+
+.adminEditorTextarea:focus {
+  border-color: rgba(86, 156, 214, 0.55);
+}
+
 .adminFileRow {
   display: flex;
   align-items: center;

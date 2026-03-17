@@ -504,6 +504,11 @@ function createFilesManagementView() {
   const actions = document.createElement("div");
   actions.className = "adminPageActions";
 
+  const editBtn = document.createElement("code");
+  editBtn.className = "cmdButton adminEditBtn";
+  editBtn.textContent = "edit";
+  actions.appendChild(editBtn);
+
   const downloadBtn = document.createElement("code");
   downloadBtn.className = "cmdButton adminDownloadBtn";
   downloadBtn.textContent = "download";
@@ -545,6 +550,42 @@ function createFilesManagementView() {
   center.appendChild(uploadBtn);
   center.appendChild(uploadInput);
 
+  const editor = document.createElement("div");
+  editor.className = "adminEditor";
+  editor.hidden = true;
+
+  const editorHeader = document.createElement("div");
+  editorHeader.className = "adminEditorHeader";
+
+  const editorTitle = document.createElement("div");
+  editorTitle.className = "adminEditorTitle";
+  editorTitle.textContent = "Edit";
+
+  const editorActions = document.createElement("div");
+  editorActions.className = "adminEditorActions";
+
+  const editorSaveBtn = document.createElement("code");
+  editorSaveBtn.className = "cmdButton";
+  editorSaveBtn.textContent = "save";
+  editorActions.appendChild(editorSaveBtn);
+
+  const editorCloseBtn = document.createElement("code");
+  editorCloseBtn.className = "cmdButton";
+  editorCloseBtn.textContent = "close";
+  editorActions.appendChild(editorCloseBtn);
+
+  editorHeader.appendChild(editorTitle);
+  editorHeader.appendChild(editorActions);
+
+  const editorTextarea = document.createElement("textarea");
+  editorTextarea.className = "adminEditorTextarea";
+  editorTextarea.setAttribute("aria-label", "File Editor");
+  editorTextarea.spellcheck = false;
+
+  editor.appendChild(editorHeader);
+  editor.appendChild(editorTextarea);
+  center.appendChild(editor);
+
   /**
    * 操作反馈提示。
    * 目的：与评论管理一致，让删除/下载/上传都以轻量方式提示结果。
@@ -564,8 +605,10 @@ function createFilesManagementView() {
   let renderSeq = 0;
   let isDeleting = false;
   let isBusy = false;
+  let isEditing = false;
   let hintTimer = 0;
   let currentEntries = [];
+  let currentEditing = null;
 
   /**
    * 设置某个动作按钮的可用性。
@@ -578,11 +621,12 @@ function createFilesManagementView() {
   }
 
   /**
-   * 根据“当前目录 + 选中项 + 忙碌态 + 权限”刷新三个按钮状态。
+   * 根据“当前目录 + 选中项 + 忙碌态 + 权限”刷新按钮状态。
    *
    * 规则：
    * - root 的非三大入口子目录（root/...）：upload/download/delete 全禁用
-   * - download：仅允许单选文件
+   * - download：允许单选文件或多选文件（多选时打包为 zip）
+   * - edit：仅允许单选可编辑文本文件
    * - delete：仅允许选中的全是文件，且全部满足当前目录的写入权限
    *
    * 目的：让 UI 的可用性与后端权限保持一致，减少“点了才报错”的挫败感。
@@ -590,6 +634,7 @@ function createFilesManagementView() {
   function setActionsEnabled() {
     if (isRestrictedRootSubdir(currentKey)) {
       setActionEnabled(uploadBtn, false);
+      setActionEnabled(editBtn, false);
       setActionEnabled(downloadBtn, false);
       setActionEnabled(deleteBtn, false);
       return;
@@ -598,8 +643,14 @@ function createFilesManagementView() {
     const byId = new Map(currentEntries.map((x) => [x.id, x]));
     const selected = Array.from(selectedIds).map((id) => byId.get(id)).filter(Boolean);
     const selectedFiles = selected.filter((x) => x.kind === "file");
-    const allow = !isBusy;
-    const canDownload = allow && selected.length === 1 && selectedFiles.length === 1;
+    const allow = !isBusy && !isEditing;
+    const canDownload = allow && selected.length > 0 && selectedFiles.length === selected.length;
+    const canEdit =
+      allow &&
+      selected.length === 1 &&
+      selectedFiles.length === 1 &&
+      isTextEditableFilename(selectedFiles[0].name) &&
+      canWriteFileAtKey(currentKey, selectedFiles[0].name);
     const canDelete =
       allow &&
       !isDeleting &&
@@ -608,6 +659,7 @@ function createFilesManagementView() {
       selectedFiles.every((x) => canWriteFileAtKey(currentKey, x.name));
 
     setActionEnabled(uploadBtn, allow);
+    setActionEnabled(editBtn, canEdit);
     setActionEnabled(downloadBtn, canDownload);
     setActionEnabled(deleteBtn, canDelete);
   }
@@ -770,6 +822,29 @@ function createFilesManagementView() {
   }
 
   /**
+   * 判断在某个目录下，文件条目的“复选框”是否允许交互。
+   *
+   * 规则（按需求）：
+   * - root 顶层：只有 *.md 可勾选，其它文件（html/css/js 等）复选框不可用
+   * - root 下级目录：除了 aboutme/image/post 三类目录外，其它目录内的文件复选框全部不可用
+   *
+   * 目的：避免在管理端误选/误操作站点根目录下的静态资源与非托管目录内容。
+   */
+  function canSelectFileAtKey(dirKey, filename) {
+    const base = baseOfKey(dirKey);
+    const rest = restPartsOfKey(dirKey);
+    const name = String(filename ?? "").trim();
+    const isMd = name.toLowerCase().endsWith(".md");
+
+    if (base !== "root") return true;
+    if (rest.length === 0) return isMd;
+
+    const top = rest[0] || "";
+    if (top === "aboutme" || top === "image" || top === "post") return top === "image" ? true : isMd;
+    return false;
+  }
+
+  /**
    * 将“管理端目录 key”映射为“仓库真实目录路径”。
    *
    * 映射：
@@ -842,8 +917,10 @@ function createFilesManagementView() {
       check.className = "adminFileCheck";
       check.type = "checkbox";
       check.checked = selectedIds.has(it.id);
+      check.disabled = !canSelectFileAtKey(currentKey, it.name);
       check.setAttribute("aria-label", "Select File");
       check.addEventListener("change", () => {
+        if (check.disabled) return;
         if (check.checked) selectedIds.add(it.id);
         else selectedIds.delete(it.id);
         setActionsEnabled();
@@ -915,14 +992,15 @@ function createFilesManagementView() {
    *
    * 注意：
    * - 该函数只负责“索引目录”（写入子目录名/文件名），不拉取具体文件内容
-   * - 配合 loadedNodes 做缓存：同一 node 只加载一次，避免频繁刷新产生速率压力
+   * - 配合 loadedNodes 做轻量缓存：默认同一 node 只加载一次；必要时可 force 重新拉取
    *
    * 目的：实现 root/image 的“按需展开”文件树。
    */
-  async function loadDirIntoFsNode(dirRepoPath, node) {
+  async function loadDirIntoFsNode(dirRepoPath, node, options = {}) {
     if (!owner || !repoName) throw new Error("GitHub repo not configured");
     if (!node || typeof node !== "object") return;
-    if (loadedNodes.has(node)) return;
+    const force = Boolean(options.force);
+    if (!force && loadedNodes.has(node)) return;
 
     const res = await githubRequest(contentsApiUrl(dirRepoPath), { method: "GET", cacheBust: true });
     if (!res.ok) {
@@ -957,7 +1035,7 @@ function createFilesManagementView() {
     if (!node || typeof node !== "object") return;
 
     if (base === "root") return await loadDirIntoFsNode(repoDir, node);
-    if (base === "image") return await loadDirIntoFsNode(repoDir, node);
+    if (base === "image") return await loadDirIntoFsNode(repoDir, node, { force: true });
     return;
   }
 
@@ -1029,6 +1107,144 @@ function createFilesManagementView() {
     const out = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
     return out;
+  }
+
+  /**
+   * 判断某个文件名是否适合使用“纯文本编辑器”打开。
+   * 目的：避免在 image 目录误把二进制文件当文本编辑，造成内容破坏。
+   */
+  function isTextEditableFilename(filename) {
+    const name = String(filename ?? "").trim().toLowerCase();
+    if (!name) return false;
+    return (
+      name.endsWith(".md") ||
+      name.endsWith(".txt") ||
+      name.endsWith(".html") ||
+      name.endsWith(".css") ||
+      name.endsWith(".js") ||
+      name.endsWith(".json") ||
+      name.endsWith(".yml") ||
+      name.endsWith(".yaml")
+    );
+  }
+
+  function downloadBlob(blob, filename) {
+    const b = blob instanceof Blob ? blob : new Blob([blob], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(b);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = String(filename ?? "").trim() || "download";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.setTimeout(() => URL.revokeObjectURL(url), 8000);
+  }
+
+  function bytesConcat(chunks) {
+    const parts = Array.isArray(chunks) ? chunks.filter(Boolean) : [];
+    const total = parts.reduce((sum, x) => sum + (x?.byteLength ?? 0), 0);
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const p of parts) {
+      out.set(p, off);
+      off += p.byteLength;
+    }
+    return out;
+  }
+
+  function u16le(n) {
+    const buf = new ArrayBuffer(2);
+    new DataView(buf).setUint16(0, n >>> 0, true);
+    return new Uint8Array(buf);
+  }
+
+  function u32le(n) {
+    const buf = new ArrayBuffer(4);
+    new DataView(buf).setUint32(0, n >>> 0, true);
+    return new Uint8Array(buf);
+  }
+
+  function crc32(bytes) {
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    let c = 0xffffffff;
+    for (let i = 0; i < data.length; i += 1) {
+      c ^= data[i];
+      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  /**
+   * 构建一个“仅存储（store）不压缩”的 zip 文件字节流。
+   * 目的：让多选下载在浏览器侧一次性打包，避免引入第三方库。
+   */
+  function buildZipBytes(files) {
+    const encoder = new TextEncoder();
+    const localParts = [];
+    const centralParts = [];
+    let localOffset = 0;
+
+    for (const f of Array.isArray(files) ? files : []) {
+      const name = String(f?.name ?? "").replaceAll("\\", "/");
+      const nameBytes = encoder.encode(name);
+      const data = f?.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f?.bytes ?? []);
+      const size = data.byteLength >>> 0;
+      const crc = crc32(data);
+
+      const localHeader = bytesConcat([
+        u32le(0x04034b50),
+        u16le(20),
+        u16le(0),
+        u16le(0),
+        u16le(0),
+        u16le(0),
+        u32le(crc),
+        u32le(size),
+        u32le(size),
+        u16le(nameBytes.byteLength),
+        u16le(0),
+        nameBytes,
+      ]);
+      localParts.push(localHeader, data);
+
+      const centralHeader = bytesConcat([
+        u32le(0x02014b50),
+        u16le(20),
+        u16le(20),
+        u16le(0),
+        u16le(0),
+        u16le(0),
+        u16le(0),
+        u32le(crc),
+        u32le(size),
+        u32le(size),
+        u16le(nameBytes.byteLength),
+        u16le(0),
+        u16le(0),
+        u16le(0),
+        u16le(0),
+        u32le(0),
+        u32le(localOffset),
+        nameBytes,
+      ]);
+      centralParts.push(centralHeader);
+
+      localOffset += localHeader.byteLength + data.byteLength;
+    }
+
+    const centralBytes = bytesConcat(centralParts);
+    const end = bytesConcat([
+      u32le(0x06054b50),
+      u16le(0),
+      u16le(0),
+      u16le(centralParts.length),
+      u16le(centralParts.length),
+      u32le(centralBytes.byteLength),
+      u32le(localOffset),
+      u16le(0),
+    ]);
+
+    return bytesConcat([...localParts, centralBytes, end]);
   }
 
   /**
@@ -1156,6 +1372,7 @@ function createFilesManagementView() {
    * 目的：复用评论管理的“切页体验”，让中间容器平滑更新。
    */
   async function switchDir(nextKey) {
+    if (isEditing) closeEditor();
     currentKey = normalizeDirKey(nextKey);
     clearSelection();
     empty.textContent = loadingText;
@@ -1166,6 +1383,99 @@ function createFilesManagementView() {
     await smoothRenderForKey(currentKey);
   }
 
+  function closeEditor() {
+    editor.hidden = true;
+    editorTextarea.value = "";
+    editorTitle.textContent = "Edit";
+    currentEditing = null;
+    isEditing = false;
+    setActionsEnabled();
+  }
+
+  /**
+   * 打开轻量文本编辑器（仅支持可编辑的纯文本文件）。
+   *
+   * 流程：
+   * - GET 拉取文件内容，解码为 UTF-8 文本
+   * - 将内容写入 textarea
+   */
+  function editSelected() {
+    void (async () => {
+      if (isRestrictedRootSubdir(currentKey)) return;
+      if (isBusy || isEditing) return;
+      const ids = Array.from(selectedIds);
+      if (ids.length !== 1) return;
+      const it = entryByIdMap().get(ids[0]);
+      if (!it || it.kind !== "file") return;
+      if (!isTextEditableFilename(it.name)) return;
+      if (!canWriteFileAtKey(currentKey, it.name)) return;
+      const repoPath = String(it.repoPath ?? "").trim();
+      if (!repoPath) return;
+
+      isBusy = true;
+      setActionsEnabled();
+      setHint("");
+      try {
+        const meta = await getFileFromGitHub(repoPath);
+        const bytes = meta.encoding === "base64" ? base64ToBytes(meta.content) : base64ToBytes(meta.content);
+        const text = new TextDecoder().decode(bytes);
+        currentEditing = { repoPath, name: it.name, sha: meta.sha };
+        editorTextarea.value = text;
+        editorTitle.textContent = it.name || "Edit";
+        editor.hidden = false;
+        isEditing = true;
+        setActionsEnabled();
+        window.setTimeout(() => editorTextarea.focus(), 0);
+      } catch (e) {
+        console.warn("[admin] edit load failed", e);
+        closeEditor();
+        setHint("Failed", { ttlMs: 2400 });
+      } finally {
+        isBusy = false;
+        setActionsEnabled();
+      }
+    })();
+  }
+
+  /**
+   * 保存编辑结果：
+   * - 先将当前文本下载为同名文件（本地备份）
+   * - 再通过 PUT 覆盖更新 GitHub 文件内容
+   */
+  function saveEditing() {
+    void (async () => {
+      if (!isEditing || !currentEditing) return;
+      if (isBusy) return;
+      const repoPath = String(currentEditing.repoPath ?? "").trim();
+      const name = String(currentEditing.name ?? "").trim() || "edit.txt";
+      const sha = String(currentEditing.sha ?? "").trim();
+      if (!repoPath) return;
+      if (!sha) return;
+
+      const text = String(editorTextarea.value ?? "");
+      downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), name);
+
+      isBusy = true;
+      setActionsEnabled();
+      setHint("");
+      try {
+        const bytes = new TextEncoder().encode(text);
+        const b64 = bytesToBase64(bytes);
+        const res = await putFileToGitHub(repoPath, b64, { sha, message: `admin edit ${repoPath}` });
+        const nextSha = String(res?.content?.sha ?? "").trim();
+        if (nextSha) currentEditing.sha = nextSha;
+        setHint("Successful", { ttlMs: 1400 });
+        await smoothRenderForKey(currentKey);
+      } catch (e) {
+        console.warn("[admin] edit save failed", e);
+        setHint("Failed", { ttlMs: 2400 });
+      } finally {
+        isBusy = false;
+        setActionsEnabled();
+      }
+    })();
+  }
+
   /**
    * 触发下载。
    */
@@ -1174,28 +1484,44 @@ function createFilesManagementView() {
       if (isRestrictedRootSubdir(currentKey)) return;
       if (isBusy) return;
       const ids = Array.from(selectedIds);
-      if (ids.length !== 1) return;
-      const it = entryByIdMap().get(ids[0]);
-      if (!it || it.kind !== "file") return;
-      const repoPath = String(it.repoPath ?? "").trim();
-      if (!repoPath) return;
+      if (ids.length === 0) return;
+      const byId = entryByIdMap();
+      const items = ids
+        .map((id) => byId.get(id))
+        .filter((x) => x && x.kind === "file");
+      if (items.length === 0) return;
 
       isBusy = true;
       setActionsEnabled();
       setHint("");
       try {
-        const file = await getFileFromGitHub(repoPath);
-        const bytes = file.encoding === "base64" ? base64ToBytes(file.content) : base64ToBytes(file.content);
-        const blob = new Blob([bytes], { type: "application/octet-stream" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = it.name || "download";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.setTimeout(() => URL.revokeObjectURL(url), 8000);
-        setHint("Successful", { ttlMs: 1200 });
+        if (items.length === 1) {
+          const it = items[0];
+          const repoPath = String(it.repoPath ?? "").trim();
+          if (!repoPath) return;
+          const file = await getFileFromGitHub(repoPath);
+          const bytes = file.encoding === "base64" ? base64ToBytes(file.content) : base64ToBytes(file.content);
+          downloadBlob(new Blob([bytes], { type: "application/octet-stream" }), it.name || "download");
+          setHint("Successful", { ttlMs: 1200 });
+          return;
+        }
+
+        const files = [];
+        for (const it of items) {
+          const repoPath = String(it.repoPath ?? "").trim();
+          if (!repoPath) continue;
+          const file = await getFileFromGitHub(repoPath);
+          const bytes = file.encoding === "base64" ? base64ToBytes(file.content) : base64ToBytes(file.content);
+          files.push({ name: it.name || "file", bytes });
+        }
+        if (files.length === 0) return;
+
+        const label = selectLabelForKey(currentKey) || "download";
+        const date = new Date().toISOString().slice(0, 10);
+        const zipName = `${label}-${date}.zip`;
+        const zipBytes = buildZipBytes(files);
+        downloadBlob(new Blob([zipBytes], { type: "application/zip" }), zipName);
+        setHint(`Successful (${files.length})`, { ttlMs: 1400 });
       } catch (e) {
         console.warn("[admin] download failed", e);
         setHint("Failed", { ttlMs: 2400 });
@@ -1329,11 +1655,32 @@ function createFilesManagementView() {
   uploadBtn.addEventListener("click", () => {
     uploadInCurrentDir();
   });
+  editBtn.addEventListener("click", () => {
+    editSelected();
+  });
   deleteBtn.addEventListener("click", () => {
     deleteSelected();
   });
   downloadBtn.addEventListener("click", () => {
     downloadSelected();
+  });
+
+  editorCloseBtn.addEventListener("click", () => {
+    closeEditor();
+  });
+  editorSaveBtn.addEventListener("click", () => {
+    saveEditing();
+  });
+  editorTextarea.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      saveEditing();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeEditor();
+    }
   });
 
   select.addEventListener("change", () => {

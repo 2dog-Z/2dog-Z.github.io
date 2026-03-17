@@ -140,6 +140,19 @@ body {
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
+  position: relative;
+}
+
+.contentBody.contentLoading::after {
+  content: "Loading…";
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  right: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: none;
 }
 
 .contentViewport {

@@ -189,6 +189,7 @@ export function createContentRenderer(options = {}) {
    */
   async function renderPath(path) {
     if (!viewportEl || !titleEl) return false;
+    if (scrollEl) scrollEl.classList.add("contentLoading");
     viewportEl.classList.add("switching");
     await sleep(180);
     try {
@@ -259,6 +260,8 @@ export function createContentRenderer(options = {}) {
         viewportEl.classList.remove("switching");
       });
       return false;
+    } finally {
+      if (scrollEl) scrollEl.classList.remove("contentLoading");
     }
   }
 
