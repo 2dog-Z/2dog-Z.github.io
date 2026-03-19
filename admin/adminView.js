@@ -507,7 +507,7 @@ function createFilesManagementView() {
   const editBtn = document.createElement("code");
   editBtn.className = "cmdButton adminEditBtn";
   editBtn.textContent = "edit";
-  actions.appendChild(editBtn);
+  actions.appendChild(editBtn); 
 
   const downloadBtn = document.createElement("code");
   downloadBtn.className = "cmdButton adminDownloadBtn";
@@ -1274,6 +1274,37 @@ function createFilesManagementView() {
   }
 
   /**
+   * 读取文本文件内容（UTF-8）与 sha。
+   *
+   * 说明：
+   * - 优先走 Contents API 的 JSON（content=base64）以同时拿到 sha
+   * - 某些场景下 GitHub 不返回 content（或为空），则降级用 Accept: vnd.github.raw 拉取原始内容
+   *
+   * 目的：让编辑器稳定加载 aboutme/post 等目录下的 Markdown 文件内容。
+   */
+  async function getTextFileFromGitHub(repoPath) {
+    const meta = await getFileFromGitHub(repoPath);
+    if (meta.encoding === "base64" && meta.content) {
+      const bytes = base64ToBytes(meta.content);
+      const text = new TextDecoder().decode(bytes);
+      return { sha: meta.sha, text };
+    }
+
+    const headers = new Headers();
+    headers.set("Accept", "application/vnd.github.raw");
+    const res = await githubRequest(contentsApiUrl(repoPath), { method: "GET", headers, cacheBust: true });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      const err = new Error(`Get file raw failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+      err.status = res.status;
+      throw err;
+    }
+    const buf = await res.arrayBuffer();
+    const text = new TextDecoder().decode(new Uint8Array(buf));
+    return { sha: meta.sha, text };
+  }
+
+  /**
    * 上传/覆盖文件（GitHub Contents API PUT）。
    * 说明：当 sha 存在时表示覆盖，否则创建新文件。
    */
@@ -1419,10 +1450,9 @@ function createFilesManagementView() {
       setActionsEnabled();
       setHint("");
       try {
-        const meta = await getFileFromGitHub(repoPath);
-        const bytes = meta.encoding === "base64" ? base64ToBytes(meta.content) : base64ToBytes(meta.content);
-        const text = new TextDecoder().decode(bytes);
-        currentEditing = { originalRepoPath: repoPath, originalName: it.name, originalSha: meta.sha };
+        const file = await getTextFileFromGitHub(repoPath);
+        currentEditing = { originalRepoPath: repoPath, originalName: it.name, originalSha: file.sha };
+        const text = file.text;
         editorTextarea.value = text;
         editorTitleInput.value = it.name || "";
         editor.hidden = false;

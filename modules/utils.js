@@ -249,6 +249,47 @@ export async function fetchGithubPostMdList(config, options = {}) {
 }
 
 /**
+ * 从 GitHub 仓库读取某个目录下的文件列表，只保留 .md 文件名。
+ *
+ * 输入：
+ * - config: { owner, repo }
+ * - dir: 目录名（例如 "aboutme"、"post"）
+ *
+ * 输出：
+ * - { etag, names }
+ * - 当命中 304 时：names 为 null（表示无需更新）
+ *
+ * 目的：
+ * - 让主站可以对 aboutme/post 做一致的“目录扫描 + ETag 缓存”策略；
+ * - 避免为每个目录重复实现一份 Contents API 的请求逻辑。
+ */
+export async function fetchGithubDirMdList(config, dir, options = {}) {
+  const owner = String(config?.owner ?? "").trim();
+  const repo = String(config?.repo ?? "").trim();
+  const dirName = String(dir ?? "").trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!owner || !repo) throw new Error("GitHub repo not configured");
+  if (!dirName) throw new Error("GitHub dir not configured");
+
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodeURIComponent(dirName)}?per_page=100`;
+  const headers = new Headers();
+  if (options.etag) headers.set("If-None-Match", String(options.etag));
+
+  const res = await githubRequest(url, { method: "GET", headers, cacheBust: true });
+  if (res.status === 304) return { etag: options.etag ?? "", names: null };
+  if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+
+  const etag = res.headers.get("ETag") || "";
+  const json = await res.json().catch(() => null);
+  const items = Array.isArray(json) ? json : [];
+  const names = items
+    .map((x) => (x && typeof x === "object" ? x : null))
+    .filter(Boolean)
+    .filter((x) => x.type === "file" && typeof x.name === "string" && x.name.toLowerCase().endsWith(".md"))
+    .map((x) => x.name);
+  return { etag, names };
+}
+
+/**
  * 给 URL 追加时间戳参数（t=...）。
  * 目的：在 GitHub Pages/中间代理存在缓存延迟时，强制命中最新状态。
  */

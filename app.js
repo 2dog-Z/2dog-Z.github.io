@@ -3,7 +3,7 @@ import { getCommentsGitHubRepo, setupComments } from "./modules/comments.js";
 import { createContentRenderer } from "./modules/contentRenderer.js";
 import { createTerminal } from "./modules/terminal.js";
 import { getTheme, setTheme } from "./modules/theme.js";
-import { fetchGithubPostMdList } from "./modules/utils.js";
+import { fetchGithubDirMdList, fetchGithubPostMdList } from "./modules/utils.js";
 
 /**
  * post 自动发现与缓存（增量）：
@@ -16,6 +16,8 @@ import { fetchGithubPostMdList } from "./modules/utils.js";
  */
 const POST_INDEX_CACHE_KEY = "tdpb_post_index_cache_v1";
 const POST_INDEX_CACHE_VERSION = 1;
+const ABOUTME_INDEX_CACHE_KEY = "tdpb_aboutme_index_cache_v1";
+const ABOUTME_INDEX_CACHE_VERSION = 1;
 
 /**
  * 读取 post 索引缓存。
@@ -51,6 +53,31 @@ function savePostIndexCache(cache) {
   }
 }
 
+function loadAboutMeIndexCache() {
+  try {
+    const raw = window.localStorage.getItem(ABOUTME_INDEX_CACHE_KEY);
+    if (!raw) return { v: ABOUTME_INDEX_CACHE_VERSION, repoKey: "", etag: "", checkedAt: 0, names: [] };
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object") return { v: ABOUTME_INDEX_CACHE_VERSION, repoKey: "", etag: "", checkedAt: 0, names: [] };
+    if (data.v !== ABOUTME_INDEX_CACHE_VERSION) return { v: ABOUTME_INDEX_CACHE_VERSION, repoKey: "", etag: "", checkedAt: 0, names: [] };
+    const repoKey = typeof data.repoKey === "string" ? data.repoKey : "";
+    const etag = typeof data.etag === "string" ? data.etag : "";
+    const checkedAt = Number.isFinite(data.checkedAt) ? data.checkedAt : 0;
+    const names = Array.isArray(data.names) ? data.names.filter((x) => typeof x === "string") : [];
+    return { v: ABOUTME_INDEX_CACHE_VERSION, repoKey, etag, checkedAt, names };
+  } catch {
+    return { v: ABOUTME_INDEX_CACHE_VERSION, repoKey: "", etag: "", checkedAt: 0, names: [] };
+  }
+}
+
+function saveAboutMeIndexCache(cache) {
+  try {
+    window.localStorage.setItem(ABOUTME_INDEX_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    return;
+  }
+}
+
 /**
  * 将“新发现的 md 文件名”合并进虚拟文件系统的 post 目录。
  * 输入：["2026-03-17-xxx.md", ...]
@@ -70,6 +97,20 @@ function mergePostsIntoFileSystem(fileSystem, names) {
     if (name === "index.md") continue;
     if (postDir[name]) continue;
     postDir[name] = `./post/${name}`;
+    added += 1;
+  }
+  return added;
+}
+
+function mergeAboutMeIntoFileSystem(fileSystem, names) {
+  const dir = fileSystem?.aboutme;
+  if (!dir || typeof dir !== "object") return 0;
+  let added = 0;
+  for (const name of names) {
+    if (typeof name !== "string") continue;
+    if (!name.endsWith(".md")) continue;
+    if (dir[name]) continue;
+    dir[name] = `./aboutme/${name}`;
     added += 1;
   }
   return added;
@@ -132,6 +173,46 @@ async function syncPostIndexInBackground(fileSystem, options = {}) {
   return { added };
 }
 
+async function syncAboutMeIndexInBackground(fileSystem, options = {}) {
+  const config = getCommentsGitHubRepo();
+  if (!config) return { added: 0 };
+  const repoKey = `${config.owner}/${config.repo}`;
+
+  const cache = loadAboutMeIndexCache();
+  const now = Date.now();
+  const shouldSkip = cache.repoKey === repoKey && cache.checkedAt && now - cache.checkedAt < 30_000;
+  if (shouldSkip) return { added: 0 };
+
+  let names;
+  let etag = cache.repoKey === repoKey ? cache.etag : "";
+  try {
+    const res = await fetchGithubDirMdList(config, "aboutme", { etag });
+    etag = res.etag;
+    names = res.names;
+  } catch {
+    const nextCache = { v: ABOUTME_INDEX_CACHE_VERSION, repoKey, etag, checkedAt: now, names: cache.repoKey === repoKey ? cache.names : [] };
+    saveAboutMeIndexCache(nextCache);
+    return { added: 0 };
+  }
+
+  if (names == null) {
+    const nextCache = { v: ABOUTME_INDEX_CACHE_VERSION, repoKey, etag, checkedAt: now, names: cache.repoKey === repoKey ? cache.names : [] };
+    saveAboutMeIndexCache(nextCache);
+    return { added: 0 };
+  }
+
+  const prevNames = cache.repoKey === repoKey ? cache.names : [];
+  const prevSet = new Set(prevNames);
+  const newNames = names.filter((x) => !prevSet.has(x));
+  const mergedNames = Array.from(new Set([...prevNames, ...names])).sort((a, b) => a.localeCompare(b));
+  const nextCache = { v: ABOUTME_INDEX_CACHE_VERSION, repoKey, etag, checkedAt: now, names: mergedNames };
+  saveAboutMeIndexCache(nextCache);
+
+  const added = mergeAboutMeIntoFileSystem(fileSystem, newNames);
+  if (added && typeof options.onChanged === "function") options.onChanged(added);
+  return { added };
+}
+
 /**
  * 应用入口（主装配文件）。
  * 功能：把各模块“组装”到一起并在 DOMReady 后启动。
@@ -161,6 +242,8 @@ window.addEventListener("DOMContentLoaded", () => {
    */
   const postCache = loadPostIndexCache();
   mergePostsIntoFileSystem(FILE_SYSTEM, postCache.names);
+  const aboutmeCache = loadAboutMeIndexCache();
+  mergeAboutMeIntoFileSystem(FILE_SYSTEM, aboutmeCache.names);
 
   /**
    * 记录最近一次渲染的路径。
@@ -230,6 +313,11 @@ window.addEventListener("DOMContentLoaded", () => {
     void syncPostIndexInBackground(FILE_SYSTEM, {
       onChanged: () => {
         if (lastRenderedPath === "./index.md" || lastRenderedPath === "./post/index.md") void renderer.renderPath(lastRenderedPath);
+      },
+    });
+    void syncAboutMeIndexInBackground(FILE_SYSTEM, {
+      onChanged: () => {
+        if (lastRenderedPath === "./aboutme/index.md") void renderer.renderPath(lastRenderedPath);
       },
     });
   });
