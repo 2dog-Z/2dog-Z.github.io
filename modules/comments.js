@@ -692,6 +692,7 @@ export function setupComments() {
   const sessionNickname = randomNickname();
   let currentPage = "";
   let loadSeq = 0;
+  let userScrolled = false;
 
   function submitComposer() {
     if (!(composerInput instanceof HTMLInputElement)) return;
@@ -709,17 +710,37 @@ export function setupComments() {
       submitComposer();
     });
   }
+  if (list instanceof HTMLElement) {
+    list.addEventListener(
+      "scroll",
+      () => {
+        userScrolled = list.scrollTop > 2;
+      },
+      { passive: true },
+    );
+  }
 
   function clearList() {
     list.replaceChildren(emptyState);
     emptyState.hidden = false;
   }
 
-  function renderComments(comments) {
+  function renderComments(comments, options = {}) {
+    const preserveScroll = options.preserveScroll ?? false;
+    const prevScrollTop = list.scrollTop;
     clearList();
     for (const c of comments) list.appendChild(createCommentElement(c));
     emptyState.hidden = comments.length > 0;
-    list.scrollTop = 0;
+    if (!preserveScroll) {
+      list.scrollTop = 0;
+      return;
+    }
+    if (!userScrolled) {
+      list.scrollTop = 0;
+      return;
+    }
+    const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+    list.scrollTop = Math.min(prevScrollTop, maxScrollTop);
   }
 
   /**
@@ -754,6 +775,7 @@ export function setupComments() {
       emptyState.hidden = false;
     }, 3000);
     const before = getCachedCommentsForPage(pageKey);
+    userScrolled = false;
     renderComments(before);
     window.requestAnimationFrame(() => {
       list.classList.remove("switching");
@@ -763,7 +785,7 @@ export function setupComments() {
       if (seq !== loadSeq) return;
       const after = getCachedCommentsForPage(pageKey);
       if (after.length === 0) emptyState.textContent = emptyText;
-      if (!sameCommentList(before, after)) renderComments(after);
+      if (!sameCommentList(before, after)) renderComments(after, { preserveScroll: true });
     } catch (e) {
       if (seq !== loadSeq) return;
       console.warn("[comments] load failed", e);
@@ -785,7 +807,13 @@ export function setupComments() {
       const title = readCurrentContentTitle() || page;
       const payload = { page, title, name: sessionNickname, text: t, date: now.toISOString() };
       const optimistic = createCommentElement({ name: payload.name, text: payload.text, date: formatDate(now) });
+      const beforeHeight = list.scrollHeight;
+      const beforeTop = list.scrollTop;
       list.insertBefore(optimistic, list.firstChild);
+      if (beforeTop > 2) {
+        const delta = list.scrollHeight - beforeHeight;
+        list.scrollTop = beforeTop + delta;
+      }
       emptyState.hidden = true;
       try {
         const created = await postCommentToIssue(payload);
