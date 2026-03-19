@@ -60,6 +60,19 @@
         </aside>
       </section>
 
+      <!--
+        移动端面板切换条：
+        - 默认展示：^ Comments（点击展开评论，评论面板平滑上移覆盖内容区）
+        - 展开后展示：v Page（点击回到页面，评论面板平滑下移收起）
+        说明：该切换条仅在窄屏/手机端样式下显示，桌面端隐藏。
+      -->
+      <div id="mobileDockToggle" class="mobileDockToggle" role="button" tabindex="0" aria-expanded="false">
+        <ul class="mobileDockList" role="list">
+          <li id="mobileDockIcon" class="mobileDockIcon" aria-hidden="true">^</li>
+          <li id="mobileDockLabel" class="mobileDockLabel">Comments</li>
+        </ul>
+      </div>
+
       <!-- 终端面板：用户交互的唯一命令入口（ls/cd/cat/say/theme/help/clear） -->
       <section class="panel terminal" aria-label="Interactive Terminal">
         <!-- 输出区：终端所有打印内容都追加到这里（内部做最大行数裁剪避免卡顿） -->

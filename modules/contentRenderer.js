@@ -19,6 +19,39 @@ export function createContentRenderer(options = {}) {
   const onPathRendered = options.onPathRendered;
 
   /**
+   * 转义 HTML（用于把报错信息安全插入到 contentHint）。
+   * 目的：避免把异常 message/stack 当成 HTML 解析，造成布局异常或注入风险。
+   */
+  function escapeHtml(input) {
+    return String(input ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  /**
+   * 统一抽取错误文本（优先 stack，再退化到 message/字符串）。
+   * 目的：让内容区失败提示可以直接携带 Console 里看到的关键信息。
+   */
+  function errorText(e) {
+    if (e instanceof Error) return e.stack || e.message || String(e);
+    return String(e ?? "");
+  }
+
+  /**
+   * 判断“Markdown 文件不存在”的常见报错形态。
+   * 目的：让列表缓存/本地缺文件这类场景，只影响 Markdown 渲染提示，而不干扰 cd 的行为语义。
+   */
+  function isMarkdownNotFoundError(path, e) {
+    const p = String(path ?? "");
+    if (!p.endsWith(".md")) return false;
+    const msg = e instanceof Error ? e.message : String(e ?? "");
+    return msg.includes("HTTP 404") || msg.includes("404 Not Found");
+  }
+
+  /**
    * 从文章文件名中推断日期（推荐文件名格式：YYYY-MM-DD-xxx.md）。
    * 用途：
    * - 文章很多时避免为“列表展示”批量 fetch 全部 meta，改用文件名快速排序/展示，保证不卡顿。
@@ -113,8 +146,18 @@ export function createContentRenderer(options = {}) {
     if (entries.length <= 12) {
       const metas = await Promise.all(
         entries.map(async ([k, url]) => {
-          const meta = await getMarkdownMeta(url);
-          return { key: k, url, title: meta.title || stripFileExtension(k), date: meta.date };
+          /**
+           * 本地开发常见场景：
+           * - 浏览器 localStorage 里缓存了“线上新增文章”的文件名
+           * - 本地目录里尚未创建对应 .md 文件
+           * 此时请求会 404；为了不让整个页面渲染失败，这里对单条 meta 读取做降级兜底。
+           */
+          try {
+            const meta = await getMarkdownMeta(url);
+            return { key: k, url, title: meta.title || stripFileExtension(k), date: meta.date };
+          } catch {
+            return { key: k, url, title: stripFileExtension(k), date: null };
+          }
         })
       );
       metas.sort((a, b) => {
@@ -253,8 +296,11 @@ export function createContentRenderer(options = {}) {
       });
       return true;
     } catch (e) {
-      viewportEl.innerHTML =
-        '<div class="contentHint">Failed to load content. If you are opening this page via <strong>file://</strong>, please run a local static server, or deploy to GitHub Pages.</div>';
+      console.error("[content] render failed", e);
+      const err = escapeHtml(errorText(e));
+      const normalized = String(path ?? "");
+      const head = isMarkdownNotFoundError(normalized, e) ? "Markdown file not found." : "Failed to load content.";
+      viewportEl.innerHTML = `<div class="contentHint">${head}<br/><strong>Console:</strong> <code>${err}</code></div>`;
       if (typeof onPathRendered === "function") onPathRendered("");
       window.requestAnimationFrame(() => {
         viewportEl.classList.remove("switching");

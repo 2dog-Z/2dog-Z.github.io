@@ -46,6 +46,19 @@ const COMMENT_MARKER = "TDPB_COMMENT/v1";
 const CACHE_KEY = "tdpb_comments_cache_v1";
 const CACHE_VERSION = 1;
 
+function readCurrentContentTitle() {
+  /**
+   * 读取当前内容区标题。
+   *
+   * 用途：
+   * - 邮件提醒需要“文章标题”字段；
+   * - 标题来源以页面左上角的 #contentTitle 为准（由 contentRenderer 维护，最贴近用户看到的标题）。
+   */
+  const el = document.getElementById("contentTitle");
+  const title = el ? String(el.textContent ?? "").trim() : "";
+  return title;
+}
+
 /**
  * 构建单条评论的 DOM 结构。
  * 功能：将 {name,text,date} 转换为页面需要的节点树，并设置必要 class/role。
@@ -603,12 +616,13 @@ export async function syncCommentsForAdmin(options = {}) {
  */
 export async function addCommentForAdmin(options = {}) {
   const page = toPageKey(options.page);
+  const title = String(options.title ?? "").trim();
   const name = String(options.name ?? "").trim();
   const text = String(options.text ?? "").trim();
   if (!page || !name || !text) return null;
 
   const now = new Date();
-  const payload = { page, name, text, date: now.toISOString() };
+  const payload = { page, title: title || page, name, text, date: now.toISOString() };
   const created = await postCommentToIssue(payload);
   const createdAt = String(created?.created_at ?? payload.date).trim();
   const commentId = Number(created?.id) || 0;
@@ -768,7 +782,8 @@ export function setupComments() {
       const page = currentPage;
       if (!page) return false;
       const now = new Date();
-      const payload = { page, name: sessionNickname, text: t, date: now.toISOString() };
+      const title = readCurrentContentTitle() || page;
+      const payload = { page, title, name: sessionNickname, text: t, date: now.toISOString() };
       const optimistic = createCommentElement({ name: payload.name, text: payload.text, date: formatDate(now) });
       list.insertBefore(optimistic, list.firstChild);
       emptyState.hidden = true;

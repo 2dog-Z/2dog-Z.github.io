@@ -63,10 +63,13 @@ body {
   flex: 4;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .comments {
   flex: 1;
+  min-width: 260px;
+  max-width: 380px;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -611,14 +614,117 @@ body {
   }
 }
 
-/* 响应式：窄屏时将上半区改为上下堆叠 */
-@media (max-width: 980px) {
-  .top {
-    flex-direction: column;
+/*
+  响应式断点策略：
+  - 640px 以上：保持“内容（左）+ 评论（右）”的左右布局
+  - 640px 及以下：启用移动端交互（评论抽屉 + 底部切换条）
+
+  目的：让布局切换与交互切换发生在同一断点，避免出现“评论已掉到底部但切换条未出现”的中间态。
+*/
+
+.mobileDockToggle {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .layout {
+    padding: 10px;
+    gap: 10px;
   }
 
-  .content,
+  .top {
+    /*
+      作为“抽屉容器”，用于承载绝对定位的评论面板：
+      - overflow: hidden 防止抽屉移出时撑开布局
+    */
+    position: relative;
+    overflow: hidden;
+    gap: 0;
+  }
+
   .comments {
-    flex: 1;
+    /*
+      评论抽屉本体：
+      - 初始位于视口下方（translateY(100%)）
+      - 展开时由 .layout.mobileCommentsOpen 控制 translateY(0)
+    */
+    position: absolute;
+    inset: 0;
+    max-width: none;
+    min-width: 0;
+    transform: translateY(100%);
+    transition: transform 260ms ease;
+    z-index: 2;
+  }
+
+  .layout.mobileCommentsOpen .comments {
+    transform: translateY(0);
+  }
+
+  .content {
+    transition: opacity 220ms ease, transform 260ms ease;
+  }
+
+  .layout.mobileCommentsOpen .content {
+    /*
+      展开评论时隐藏内容区，避免“评论覆盖但内容仍可交互”。
+    */
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+  }
+
+  .mobileDockToggle {
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .mobileDockList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobileDockIcon {
+    width: 16px;
+    flex: 0 0 auto;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .mobileDockLabel {
+    flex: 1 1 auto;
+    font-size: 12px;
+    letter-spacing: 0.2px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .terminalInputRow {
+    /*
+      移动端终端排版：
+      - prompt 换行后输入框在下一行
+      - 输出/输入按宽度自动换行，减少横向滚动
+    */
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .prompt {
+    white-space: normal;
+  }
+
+  .terminalInput {
+    flex: 1 0 100%;
+    padding-top: 6px;
   }
 }

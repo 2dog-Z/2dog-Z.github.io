@@ -274,6 +274,67 @@ window.addEventListener("DOMContentLoaded", () => {
     readTheme: getTheme,
   });
   window.__terminal = term;
+
+  /**
+   * 初始化移动端面板切换条（^ Comments / v Page）。
+   *
+   * 交互规则：
+   * - 默认（关闭）：显示 ^ Comments，点击后评论面板平滑上移覆盖内容区
+   * - 展开（打开）：显示 v Page，点击后评论面板平滑下移收起并回到页面
+   *
+   * 目的：
+   * - 在窄屏/手机端把“评论”从右侧栏改为“底部抽屉”式体验，避免内容过窄
+   * - 保持终端仍作为唯一命令入口，不改变原有命令/渲染逻辑
+   */
+  function setupMobileDock() {
+    const layout = document.querySelector(".layout");
+    const dock = document.getElementById("mobileDockToggle");
+    const icon = document.getElementById("mobileDockIcon");
+    const label = document.getElementById("mobileDockLabel");
+    if (!(layout instanceof HTMLElement)) return;
+    if (!(dock instanceof HTMLElement)) return;
+    if (!(icon instanceof HTMLElement)) return;
+    if (!(label instanceof HTMLElement)) return;
+
+    const mq = window.matchMedia("(max-width: 640px)");
+
+    function setOpen(open) {
+      const nextOpen = Boolean(open);
+      layout.classList.toggle("mobileCommentsOpen", nextOpen);
+      dock.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+      if (nextOpen) {
+        icon.textContent = "v";
+        label.textContent = "Page";
+      } else {
+        icon.textContent = "^";
+        label.textContent = "Comments";
+      }
+    }
+
+    function toggle() {
+      setOpen(!layout.classList.contains("mobileCommentsOpen"));
+    }
+
+    dock.addEventListener("click", () => {
+      if (!mq.matches) return;
+      toggle();
+    });
+
+    dock.addEventListener("keydown", (e) => {
+      if (!mq.matches) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      toggle();
+    });
+
+    mq.addEventListener("change", (e) => {
+      if (!e.matches) setOpen(false);
+    });
+
+    setOpen(false);
+  }
+
+  setupMobileDock();
   document.addEventListener("click", (e) => {
     /**
      * 全局 “data-cmd -> 终端命令” 转发器。

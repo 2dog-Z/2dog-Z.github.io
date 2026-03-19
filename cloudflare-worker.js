@@ -23,6 +23,23 @@ const PASS_VALUE = "REPLACE_ME";
 const UPSTREAM_ORIGIN = "https://api.github.com";
 
 /**
+ * 评论邮件提醒 Worker 配置。
+ *
+ * 说明：
+ * - 当检测到“新增 GitHub issue comment”请求并且上游创建成功时，Worker 会异步调用该地址发送邮件提醒
+ * - 邮件发送由独立 Worker 实现（见 email_cloudflare.js），主代理 Worker 只负责转发与触发通知
+ *
+ * 安全提示：
+ * - NOTIFY_PASS_* 是另一个共享密钥，用于防止邮件 Worker 被当成公共发送器
+ * - 建议把这些配置迁移到 Worker 环境变量中管理
+ */
+const NOTIFY_WORKER_URL = "REPLACE";
+const NOTIFY_PASS_HEADER = "REPLACE";
+const NOTIFY_PASS_VALUE = "REPLACE";
+
+const COMMENT_MARKER = "TDPB_COMMENT/v1";
+
+/**
  * 生成浏览器可用的 CORS 响应头。
  *
  * 功能：
@@ -44,6 +61,56 @@ function corsHeaders(request) {
   };
 }
 
+function isNotifyConfigured() {
+  if (String(NOTIFY_WORKER_URL).includes("REPLACE_ME")) return false;
+  if (String(NOTIFY_PASS_HEADER).includes("REPLACE_ME")) return false;
+  if (String(NOTIFY_PASS_VALUE).includes("REPLACE_ME")) return false;
+  return true;
+}
+
+function parseJsonBody(text) {
+  try {
+    const x = JSON.parse(String(text ?? ""));
+    return x && typeof x === "object" ? x : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseCommentPayloadFromIssueCommentBody(body) {
+  /**
+   * 从 issue comment 的 body 中解析出“评论业务字段”。
+   *
+   * 约定：
+   * - 前端写入的 comment body 以 COMMENT_MARKER 开头，后续紧跟一段 JSON
+   * - JSON 字段：page/title/name/text/date（title 为后续新增字段，旧评论可能缺失）
+   *
+   * 目的：
+   * - 代理 Worker 不需要理解前端业务，只在“确定是本项目评论”时触发提醒
+   * - 避免误把其它用途的 issue comment 当成评论提醒发送
+   */
+  const s0 = String(body ?? "");
+  const s = s0.trimStart();
+  if (!s.startsWith(COMMENT_MARKER)) return null;
+  const jsonText = s.slice(COMMENT_MARKER.length).trim().replace(/^\n+/, "");
+  if (!jsonText) return null;
+  const data = parseJsonBody(jsonText);
+  if (!data) return null;
+  const page = String(data?.page ?? "").trim();
+  const title = String(data?.title ?? "").trim();
+  const name = String(data?.name ?? "").trim();
+  const text = String(data?.text ?? "").trim();
+  const date = String(data?.date ?? "").trim();
+  if (!page || !name || !text || !date) return null;
+  return { page, title: title || page, name, text, date };
+}
+
+function shouldNotifyForRequest(url, method) {
+  if (method !== "POST") return false;
+  const p = String(url?.pathname ?? "");
+  return /^\/gh\/repos\/[^/]+\/[^/]+\/issues\/\d+\/comments$/.test(p);
+}
+
 export default {
   /**
    * Worker 入口。
@@ -53,7 +120,7 @@ export default {
    * - /gh 映射到 GitHub API 根路径 /；
    * - /gh/<path> 映射到 GitHub API 的 /<path>。
    */
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     /**
      * 处理预检请求（浏览器在发送带自定义 Header 的跨域请求前会先发 OPTIONS）。
      * 返回 204 + CORS 头即可。
@@ -95,6 +162,16 @@ export default {
     if (!headers.get("X-GitHub-Api-Version")) headers.set("X-GitHub-Api-Version", "2022-11-28");
     if (!headers.get("User-Agent")) headers.set("User-Agent", "tdpb-worker");
 
+    const shouldNotify = isNotifyConfigured() && shouldNotifyForRequest(url, request.method);
+    let notifyPayload = null;
+    if (shouldNotify) {
+      const clone = request.clone();
+      const raw = await clone.text();
+      const json = parseJsonBody(raw);
+      const body = String(json?.body ?? "");
+      notifyPayload = parseCommentPayloadFromIssueCommentBody(body);
+    }
+
     /**
      * 转发请求到上游：
      * - GET/HEAD 不带 body；
@@ -107,6 +184,23 @@ export default {
       body: request.method === "GET" || request.method === "HEAD" ? null : request.body,
       redirect: "manual",
     });
+
+    /**
+     * 异步触发邮件提醒：
+     * - 仅在“新增评论”请求且上游创建成功时触发（GitHub 返回 201）
+     * - 通过 ctx.waitUntil 保证不会阻塞当前请求的响应
+     */
+    if (notifyPayload && upstreamRes.status === 201) {
+      const p = fetch(NOTIFY_WORKER_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [NOTIFY_PASS_HEADER]: NOTIFY_PASS_VALUE,
+        },
+        body: JSON.stringify(notifyPayload),
+      }).catch(() => {});
+      ctx.waitUntil(p);
+    }
 
     /**
      * 组装返回给浏览器的响应：

@@ -66,5 +66,5 @@ A beginning explorer to knowledge across diverse fields. I am passionate about d
 
 - Rhodes Sydney / Shenzhen China
 - **Email：** [chamberszhang000@gmail.com](mailto:chamberszhang000@gmail.com) / [czha0212@uni.sydney.edu.au](mailto:czha0212@uni.sydney.edu.au)
-    Or Just [admin@2dogz.net](mailto:admin@2dogz.net)
+    Or Just [admin@2dogz.org](mailto:admin@2dogz.org)
 {{socialLinks}}

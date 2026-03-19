@@ -504,6 +504,11 @@ function createFilesManagementView() {
   const actions = document.createElement("div");
   actions.className = "adminPageActions";
 
+  const newMdBtn = document.createElement("code");
+  newMdBtn.className = "cmdButton adminNewMdBtn";
+  newMdBtn.textContent = "new md";
+  actions.appendChild(newMdBtn);
+
   const editBtn = document.createElement("code");
   editBtn.className = "cmdButton adminEditBtn";
   editBtn.textContent = "edit";
@@ -637,6 +642,7 @@ function createFilesManagementView() {
   function setActionsEnabled() {
     if (isRestrictedRootSubdir(currentKey)) {
       setActionEnabled(uploadBtn, false);
+      setActionEnabled(newMdBtn, false);
       setActionEnabled(editBtn, false);
       setActionEnabled(downloadBtn, false);
       setActionEnabled(deleteBtn, false);
@@ -646,7 +652,9 @@ function createFilesManagementView() {
     const byId = new Map(currentEntries.map((x) => [x.id, x]));
     const selected = Array.from(selectedIds).map((id) => byId.get(id)).filter(Boolean);
     const selectedFiles = selected.filter((x) => x.kind === "file");
+    const base = baseOfKey(currentKey);
     const allow = !isBusy && !isEditing;
+    const canNewMd = allow && (base === "root" || base === "post" || base === "aboutme");
     const canDownload = allow && selected.length > 0 && selectedFiles.length === selected.length;
     const canEdit =
       allow &&
@@ -662,6 +670,7 @@ function createFilesManagementView() {
       selectedFiles.every((x) => canWriteFileAtKey(currentKey, x.name));
 
     setActionEnabled(uploadBtn, allow);
+    setActionEnabled(newMdBtn, canNewMd);
     setActionEnabled(editBtn, canEdit);
     setActionEnabled(downloadBtn, canDownload);
     setActionEnabled(deleteBtn, canDelete);
@@ -1427,6 +1436,57 @@ function createFilesManagementView() {
   }
 
   /**
+   * 生成“新建 Markdown”默认文件名。
+   *
+   * 规则：
+   * - 前缀使用当天日期（YYYY-MM-DD），便于按时间排序
+   * - 后缀固定为 "New File.md"，给用户一个可直接替换的占位
+   */
+  function defaultNewMdFilename() {
+    const date = new Date().toISOString().slice(0, 10);
+    return `${date}-New-File.md`;
+  }
+
+  /**
+   * 生成“新建 Markdown”的默认内容（自带 front matter）。
+   *
+   * 约定：
+   * - 保持与仓库现有文章一致：front matter 仅包含 title/date
+   * - 预留一个一级标题，方便用户立即开始写正文
+   */
+  function defaultNewMdText() {
+    const date = new Date().toISOString().slice(0, 10);
+    const title = "New File";
+    return `---\ntitle: ${title}\ndate: ${date}\n---\n\n# ${title}\n\n`;
+  }
+
+  /**
+   * 打开“新建 Markdown”编辑器。
+   *
+   * 行为：
+   * - 默认填入文件名：当天日期 + New File
+   * - 默认填入内容：包含 front matter 的模板
+   * - 保存后会写入当前目录（与 upload 一致遵循目录权限）
+   */
+  function newMdInCurrentDir() {
+    void (async () => {
+      if (isRestrictedRootSubdir(currentKey)) return;
+      if (isBusy || isEditing) return;
+      const base = baseOfKey(currentKey);
+      if (base !== "root" && base !== "post" && base !== "aboutme") return;
+
+      editorTitleInput.value = defaultNewMdFilename();
+      editorTextarea.value = defaultNewMdText();
+      currentEditing = { mode: "create", dirKey: currentKey };
+      editor.hidden = false;
+      isEditing = true;
+      setActionsEnabled();
+      setHint("");
+      window.setTimeout(() => editorTitleInput.focus(), 0);
+    })();
+  }
+
+  /**
    * 打开轻量文本编辑器（仅支持可编辑的纯文本文件）。
    *
    * 流程：
@@ -1451,7 +1511,7 @@ function createFilesManagementView() {
       setHint("");
       try {
         const file = await getTextFileFromGitHub(repoPath);
-        currentEditing = { originalRepoPath: repoPath, originalName: it.name, originalSha: file.sha };
+        currentEditing = { mode: "edit", originalRepoPath: repoPath, originalName: it.name, originalSha: file.sha };
         const text = file.text;
         editorTextarea.value = text;
         editorTitleInput.value = it.name || "";
@@ -1481,12 +1541,8 @@ function createFilesManagementView() {
     void (async () => {
       if (!isEditing || !currentEditing) return;
       if (isBusy) return;
-      const oldRepoPath = String(currentEditing.originalRepoPath ?? "").trim();
-      const oldName = String(currentEditing.originalName ?? "").trim();
-      const oldSha = String(currentEditing.originalSha ?? "").trim();
+      const mode = String(currentEditing.mode ?? "edit");
       const nextName = String(editorTitleInput.value ?? "").trim();
-      if (!oldRepoPath) return;
-      if (!oldSha) return;
       if (!nextName) return;
       if (nextName.includes("/") || nextName.includes("\\")) return;
       if (!isTextEditableFilename(nextName)) return;
@@ -1500,6 +1556,38 @@ function createFilesManagementView() {
       try {
         const bytes = new TextEncoder().encode(text);
         const b64 = bytesToBase64(bytes);
+        if (mode === "create") {
+          if (isRestrictedRootSubdir(currentKey)) return;
+          const repoPath = fileRepoPathForUpload(currentKey, nextName);
+          if (!repoPath) throw new Error("Invalid filename");
+
+          let sha = "";
+          try {
+            const meta = await getFileFromGitHub(repoPath);
+            sha = String(meta?.sha ?? "").trim();
+          } catch (e) {
+            const status = Number(e?.status);
+            if (status !== 404) throw e;
+            sha = "";
+          }
+
+          const res = await putFileToGitHub(repoPath, b64, { sha, message: `admin create ${repoPath}` });
+          const uploadedSha = String(res?.content?.sha ?? "").trim();
+
+          const node = nodeForKey(currentKey);
+          if (node && typeof node === "object") node[nextName] = `./${repoPath}`;
+
+          currentEditing = { mode: "edit", originalRepoPath: repoPath, originalName: nextName, originalSha: uploadedSha || sha };
+          setHint("Successful", { ttlMs: 1400 });
+          await smoothRenderForKey(currentKey);
+          return;
+        }
+
+        const oldRepoPath = String(currentEditing.originalRepoPath ?? "").trim();
+        const oldName = String(currentEditing.originalName ?? "").trim();
+        const oldSha = String(currentEditing.originalSha ?? "").trim();
+        if (!oldRepoPath) return;
+        if (!oldSha) return;
         if (nextName === oldName) {
           const res = await putFileToGitHub(oldRepoPath, b64, { sha: oldSha, message: `admin edit ${oldRepoPath}` });
           const nextSha = String(res?.content?.sha ?? "").trim();
@@ -1725,6 +1813,9 @@ function createFilesManagementView() {
 
   uploadBtn.addEventListener("click", () => {
     uploadInCurrentDir();
+  });
+  newMdBtn.addEventListener("click", () => {
+    newMdInCurrentDir();
   });
   editBtn.addEventListener("click", () => {
     editSelected();

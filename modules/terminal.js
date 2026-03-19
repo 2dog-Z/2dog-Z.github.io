@@ -285,9 +285,19 @@ export function createTerminal(options = {}) {
             const filesWithMeta = await Promise.all(
               files.map(async ([name, value]) => {
                 if (typeof value === "string" && name.endsWith(".md")) {
-                  const meta = await getMarkdownMeta(value);
-                  const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
-                  return { name, value, t };
+                  /**
+                   * 常见场景：
+                   * - 本地目录缺少某篇文章，但缓存/列表里仍有该文件名
+                   * - fetch meta 返回 404，导致整个 ls/cd 输出被打断
+                   * 这里对单条 meta 做降级，避免影响终端命令的回显与树输出。
+                   */
+                  try {
+                    const meta = await getMarkdownMeta(value);
+                    const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
+                    return { name, value, t };
+                  } catch {
+                    return { name, value, t: -Infinity };
+                  }
                 }
                 return { name, value, t: -Infinity };
               })
@@ -309,9 +319,13 @@ export function createTerminal(options = {}) {
             const filesWithMeta = await Promise.all(
               files.map(async ([name, value]) => {
                 if (typeof value === "string" && name.endsWith(".md")) {
-                  const meta = await getMarkdownMeta(value);
-                  const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
-                  return { name, value, t };
+                  try {
+                    const meta = await getMarkdownMeta(value);
+                    const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
+                    return { name, value, t };
+                  } catch {
+                    return { name, value, t: -Infinity };
+                  }
                 }
                 return { name, value, t: -Infinity };
               })
@@ -324,25 +338,28 @@ export function createTerminal(options = {}) {
           })();
 
     beginPrinting();
-    appendLineInstant(".", "dim");
-    for (let idx = 0; idx < entries.length; idx += 1) {
-      const [name, value] = entries[idx];
-      await sleep(26);
-      const last = idx === entries.length - 1;
-      const isDir = value && typeof value === "object";
-      const prefix = `${last ? "└──" : "├──"} `;
+    try {
+      appendLineInstant(".", "dim");
+      for (let idx = 0; idx < entries.length; idx += 1) {
+        const [name, value] = entries[idx];
+        await sleep(26);
+        const last = idx === entries.length - 1;
+        const isDir = value && typeof value === "object";
+        const prefix = `${last ? "└──" : "├──"} `;
 
-      if (isDir) {
-        const absDir = toAbsolutePath([...pathParts, name]);
-        appendLinePartsInstant([prefix, createJumpLink(`${name}/`, `cd ${absDir}`)], "dim");
-        continue;
+        if (isDir) {
+          const absDir = toAbsolutePath([...pathParts, name]);
+          appendLinePartsInstant([prefix, createJumpLink(`${name}/`, `cd ${absDir}`)], "dim");
+          continue;
+        }
+
+        const base = stripFileExtension(name);
+        const absFile = toAbsolutePath([...pathParts, base]);
+        appendLinePartsInstant([prefix, createJumpLink(name, `cat ${absFile}`)], "dim");
       }
-
-      const base = stripFileExtension(name);
-      const absFile = toAbsolutePath([...pathParts, base]);
-      appendLinePartsInstant([prefix, createJumpLink(name, `cat ${absFile}`)], "dim");
+    } finally {
+      endPrinting();
     }
-    endPrinting();
   }
 
   /**
@@ -366,9 +383,13 @@ export function createTerminal(options = {}) {
     const fileWithMeta = await Promise.all(
       files.map(async (f) => {
         if (f.name.endsWith(".md")) {
-          const meta = await getMarkdownMeta(f.url);
-          const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
-          return { ...f, t };
+          try {
+            const meta = await getMarkdownMeta(f.url);
+            const t = meta.date instanceof Date ? meta.date.getTime() : -Infinity;
+            return { ...f, t };
+          } catch {
+            return { ...f, t: -Infinity };
+          }
         }
         return { ...f, t: -Infinity };
       })
@@ -381,18 +402,21 @@ export function createTerminal(options = {}) {
     });
 
     beginPrinting();
-    for (const d of dirs) {
-      await sleep(26);
-      const absDir = toAbsolutePath([...cwd, d.name]);
-      appendLinePartsInstant([createJumpLink(`${d.name}/`, `cd ${absDir}`)], "dim");
+    try {
+      for (const d of dirs) {
+        await sleep(26);
+        const absDir = toAbsolutePath([...cwd, d.name]);
+        appendLinePartsInstant([createJumpLink(`${d.name}/`, `cd ${absDir}`)], "dim");
+      }
+      for (const f of fileWithMeta) {
+        await sleep(26);
+        const base = stripFileExtension(f.name);
+        const absFile = toAbsolutePath([...cwd, base]);
+        appendLinePartsInstant([createJumpLink(f.name, `cat ${absFile}`)], "dim");
+      }
+    } finally {
+      endPrinting();
     }
-    for (const f of fileWithMeta) {
-      await sleep(26);
-      const base = stripFileExtension(f.name);
-      const absFile = toAbsolutePath([...cwd, base]);
-      appendLinePartsInstant([createJumpLink(f.name, `cat ${absFile}`)], "dim");
-    }
-    endPrinting();
   }
 
   /**
@@ -451,8 +475,12 @@ export function createTerminal(options = {}) {
     if (!resolved.ok) return await typewriter(resolved.error, { variant: "dim", speedMs: 8, lineDelayMs: 28 });
     if (!renderPath) return await typewriter("cat: renderer not available", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
     beginPrinting();
-    const ok = await renderPath(resolved.url);
-    endPrinting();
+    let ok = false;
+    try {
+      ok = await renderPath(resolved.url);
+    } finally {
+      endPrinting();
+    }
     if (!ok) return await typewriter(`cat: failed to open ${resolved.display}`, { variant: "dim", speedMs: 8, lineDelayMs: 28 });
     await typewriter(`opened ${resolved.display}`, { variant: "dim", speedMs: 8, lineDelayMs: 28 });
   }
@@ -464,13 +492,17 @@ export function createTerminal(options = {}) {
    */
   function maybeRenderIndex() {
     if (!renderPath) return;
+
     if (cwd.length === 0) {
       void renderPath(DEFAULT_PAGE);
       return;
     }
+
     const node = resolveDir(FILE_SYSTEM, cwd);
     const indexPath = node?.["index.md"] ?? node?.["index.html"];
-    if (typeof indexPath === "string") void renderPath(indexPath);
+    if (typeof indexPath !== "string") return;
+
+    void renderPath(indexPath);
   }
 
   /**
@@ -515,7 +547,7 @@ export function createTerminal(options = {}) {
       else next.push(p);
     }
     const node = resolveDir(FILE_SYSTEM, next);
-    if (!node) return await typewriter("cd: directory does not exist", { variant: "dim", speedMs: 8, lineDelayMs: 28 });
+    if (!node) return await typewriter(`cd: directory does not exist ${toAbsolutePath(next)}`, { variant: "dim", speedMs: 8, lineDelayMs: 28 });
     cwd = next;
     setPrompt();
     await printTreeForPath(cwd);
