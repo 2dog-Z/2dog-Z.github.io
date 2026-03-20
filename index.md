@@ -12,8 +12,6 @@ Welcome! This is a Terminal-Style Personal Blog of Chambers Z.
 
 ## Posts
 
-#### Latest Post
-{{postLatest}}
 
 ## Command Cheat Sheet
 

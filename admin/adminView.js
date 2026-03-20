@@ -1512,7 +1512,24 @@ function createFilesManagementView() {
       try {
         const file = await getTextFileFromGitHub(repoPath);
         currentEditing = { mode: "edit", originalRepoPath: repoPath, originalName: it.name, originalSha: file.sha };
-        const text = file.text;
+        let text = String(file.text ?? "");
+        if (!text) {
+          const node = nodeForKey(currentKey);
+          const rawUrl = node && typeof node === "object" ? node[it.name] : "";
+          const url0 = String(rawUrl ?? "").trim();
+          const url = url0.startsWith("./") ? `../${url0.slice(2)}` : url0;
+          if (url) {
+            try {
+              const res = await window.fetch(url, { cache: "no-store" });
+              if (res.ok) {
+                const localText = await res.text();
+                if (localText) text = localText;
+              }
+            } catch {
+              text = text;
+            }
+          }
+        }
         editorTextarea.value = text;
         editorTitleInput.value = it.name || "";
         editor.hidden = false;
@@ -1758,6 +1775,17 @@ function createFilesManagementView() {
     if (isRestrictedRootSubdir(currentKey)) return;
     uploadInput.value = "";
     const base = baseOfKey(currentKey);
+    /**
+     * image 目录上传交互调整：
+     * - 文件管理的 upload 默认是“原样写入 GitHub”（不做格式处理）
+     * - 图床 upload 会把图片统一转成 WebP，并在上传后自动刷新索引
+     *
+     * 目的：让 image 的上传入口始终走图床的规范化流程，避免同目录出现两套不一致逻辑。
+     */
+    if (base === "image") {
+      window.dispatchEvent(new CustomEvent("tdpb_admin_images_request_upload"));
+      return;
+    }
     uploadInput.accept = base === "image" ? "" : ".md";
     uploadInput.click();
   }
@@ -1877,6 +1905,840 @@ function createFilesManagementView() {
 }
 
 /**
+ * 图床页面（展示 /image 目录下所有图片，支持分页 + 瀑布流）。
+ *
+ * 需求要点：
+ * - 设计语言与“文件管理 / 评论管理”保持一致（同壳层、同头部布局、同按钮风格）
+ * - 使用 GitHub Contents API 递归扫描 image 目录
+ * - 以瀑布流布局展示当前页图片，并提供上一页/下一页与页码选择
+ */
+function createImageHostingView() {
+  const page = document.createElement("div");
+  page.className = "adminPage adminImagesPage";
+
+  const loadingText = "Loading Images…";
+  const emptyText = "No images in /image.";
+
+  const repo = getCommentsGitHubRepo();
+  const owner = repo?.owner || "";
+  const repoName = repo?.repo || "";
+
+  const header = document.createElement("div");
+  header.className = "adminPageHeader";
+
+  const left = document.createElement("div");
+  left.className = "adminPageTitle";
+  left.textContent = "Image Hosting";
+
+  const pageSelect = document.createElement("select");
+  pageSelect.className = "adminSelect";
+  pageSelect.setAttribute("aria-label", "Image Page");
+
+  const actions = document.createElement("div");
+  actions.className = "adminPageActions";
+
+  const prevBtn = document.createElement("code");
+  prevBtn.className = "cmdButton";
+  prevBtn.textContent = "prev";
+  prevBtn.title = "prev";
+  actions.appendChild(prevBtn);
+
+  const nextBtn = document.createElement("code");
+  nextBtn.className = "cmdButton";
+  nextBtn.textContent = "next";
+  nextBtn.title = "next";
+  actions.appendChild(nextBtn);
+
+  const refreshBtn = document.createElement("code");
+  refreshBtn.className = "cmdButton";
+  refreshBtn.textContent = "refresh";
+  refreshBtn.title = "refresh";
+  actions.appendChild(refreshBtn);
+
+  const deleteBtn = document.createElement("code");
+  deleteBtn.className = "cmdButton adminDeleteBtn adminImagesDeleteBtn";
+  deleteBtn.textContent = "delete";
+  deleteBtn.title = "delete";
+
+  header.appendChild(left);
+  header.appendChild(pageSelect);
+  header.appendChild(actions);
+
+  const center = document.createElement("div");
+  center.className = "adminImagesCenter";
+
+  const empty = document.createElement("div");
+  empty.className = "commentsEmpty";
+  empty.textContent = loadingText;
+  empty.hidden = false;
+
+  const grid = document.createElement("div");
+  grid.className = "adminImageMasonry";
+  grid.hidden = true;
+
+  const uploadBtn = document.createElement("code");
+  uploadBtn.className = "cmdButton adminUploadBtn";
+  uploadBtn.textContent = "upload";
+  uploadBtn.title = "upload";
+
+  const uploadInput = document.createElement("input");
+  uploadInput.type = "file";
+  uploadInput.hidden = true;
+  uploadInput.setAttribute("aria-hidden", "true");
+  uploadInput.accept = "image/*";
+
+  /**
+   * 图床底部操作区（右下角）。
+   *
+   * 布局：
+   * - delete：左侧
+   * - upload：右侧
+   *
+   * 目的：与文件管理一致，将“危险操作”放在角落并减少误触。
+   */
+  const fab = document.createElement("div");
+  fab.className = "adminImagesFab";
+  fab.appendChild(deleteBtn);
+  fab.appendChild(uploadBtn);
+  fab.appendChild(uploadInput);
+
+  /**
+   * 大图预览弹层（点击瀑布流图片触发）。
+   *
+   * 结构：
+   * - overlay：全屏遮罩（点击空白关闭）
+   * - panel：居中容器（承载图片与右上角按钮）
+   *
+   * 目的：在后台快速检查图片内容，并提供一键复制 Markdown 语法的入口。
+   */
+  const previewOverlay = document.createElement("div");
+  previewOverlay.className = "adminImagePreviewOverlay";
+  previewOverlay.hidden = true;
+  previewOverlay.setAttribute("role", "dialog");
+  previewOverlay.setAttribute("aria-label", "Image Preview");
+
+  const previewPanel = document.createElement("div");
+  previewPanel.className = "adminImagePreviewPanel";
+
+  const previewImg = document.createElement("img");
+  previewImg.className = "adminImagePreviewImg";
+  previewImg.alt = "";
+  previewImg.loading = "eager";
+
+  const previewActions = document.createElement("div");
+  previewActions.className = "adminImagePreviewActions";
+
+  const previewCopyBtn = document.createElement("code");
+  previewCopyBtn.className = "cmdButton";
+  previewCopyBtn.textContent = "copy";
+  previewActions.appendChild(previewCopyBtn);
+
+  const previewDeleteBtn = document.createElement("code");
+  previewDeleteBtn.className = "cmdButton";
+  previewDeleteBtn.textContent = "delete";
+  previewActions.appendChild(previewDeleteBtn);
+
+  const previewCloseBtn = document.createElement("code");
+  previewCloseBtn.className = "cmdButton";
+  previewCloseBtn.textContent = "close";
+  previewActions.appendChild(previewCloseBtn);
+
+  previewPanel.appendChild(previewImg);
+  previewPanel.appendChild(previewActions);
+  previewOverlay.appendChild(previewPanel);
+
+  center.appendChild(empty);
+  center.appendChild(grid);
+  center.appendChild(fab);
+
+  /**
+   * 操作反馈提示。
+   * 目的：与其它管理页一致，把刷新/复制等反馈压缩为轻量文案。
+   */
+  const hint = document.createElement("div");
+  hint.className = "adminFootnote";
+  hint.textContent = "";
+  hint.setAttribute("role", "status");
+  hint.setAttribute("aria-live", "polite");
+
+  page.appendChild(header);
+  page.appendChild(center);
+  page.appendChild(hint);
+
+  const pageSize = 30;
+  let allImages = [];
+  let currentPageIndex = 0;
+  let isLoading = false;
+  let isUploading = false;
+  let isDeleting = false;
+  let hintTimer = 0;
+  let hintLockUntil = 0;
+  let previewKeyHandler = null;
+  let previewGridHiddenBackup = true;
+  let previewFabHiddenBackup = false;
+  let previewMdText = "";
+  let previewRepoPath = "";
+  const selectedRepoPaths = new Set();
+
+  function setActionEnabled(el, enabled) {
+    el.style.pointerEvents = enabled ? "auto" : "none";
+    el.style.opacity = enabled ? "1" : "0.6";
+  }
+
+  function setHint(text, options = {}) {
+    const { ttlMs = 1400, priority = "normal" } = options;
+    if (priority === "auto" && Date.now() < hintLockUntil) return;
+    hint.textContent = String(text ?? "");
+    if (hintTimer) window.clearTimeout(hintTimer);
+    if (!hint.textContent) return;
+    if (priority !== "auto") hintLockUntil = Date.now() + ttlMs;
+    hintTimer = window.setTimeout(() => {
+      hint.textContent = "";
+    }, ttlMs);
+  }
+
+  /**
+   * 把仓库路径拆段并逐段 encodeURIComponent。
+   * 目的：支持包含空格/中文等字符的文件/目录名，避免拼 URL 时路径被误解析。
+   */
+  function encodePath(path) {
+    const p = String(path ?? "")
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "");
+    if (!p) return "";
+    return p
+      .split("/")
+      .filter(Boolean)
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+  }
+
+  /**
+   * 构建 GitHub Contents API 的 URL（不经由 Worker）。
+   * 说明：实际请求会再由 githubRequest() 重写到 Worker（/gh 前缀）。
+   */
+  function contentsApiUrl(path) {
+    const repoPath = String(path ?? "")
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "");
+    const encoded = encodePath(repoPath);
+    const suffix = encoded ? `/${encoded}` : "";
+    return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/contents${suffix}`;
+  }
+
+  /**
+   * 判断文件名是否为图片。
+   * 目的：避免把非图片（如 .md / .json）渲染成 <img> 造成错误占位。
+   */
+  function isImageFilename(name) {
+    const n = String(name ?? "").trim().toLowerCase();
+    return (
+      n.endsWith(".png") ||
+      n.endsWith(".jpg") ||
+      n.endsWith(".jpeg") ||
+      n.endsWith(".gif") ||
+      n.endsWith(".webp") ||
+      n.endsWith(".svg") ||
+      n.endsWith(".avif") ||
+      n.endsWith(".bmp")
+    );
+  }
+
+  /**
+   * 递归扫描 image 目录，返回平铺后的图片列表。
+   *
+   * 输出：
+   * - { id, repoPath, name, publicUrl, sitePath }
+   *
+   * 目的：
+   * - 以“单数组 + 分页”形式渲染，避免瀑布流布局与树形结构耦合
+   * - sitePath 用于一键复制（在主站 markdown 中可直接使用）
+   */
+  async function fetchAllImagesInRepo() {
+    if (!owner || !repoName) throw new Error("GitHub repo not configured");
+
+    const queue = ["image"];
+    const out = [];
+
+    while (queue.length > 0) {
+      const dirRepoPath = queue.shift();
+      const res = await githubRequest(contentsApiUrl(dirRepoPath), { method: "GET", cacheBust: true });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Load image dir failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+      }
+
+      const data = await res.json().catch(() => null);
+      const items = Array.isArray(data) ? data : [];
+      for (const it of items) {
+        const type = String(it?.type ?? "").trim();
+        const path = String(it?.path ?? "").replace(/^\/+/, "").replace(/\/+$/, "");
+        const name = String(it?.name ?? "").trim();
+        if (!type || !path || !name) continue;
+        if (type === "dir") {
+          queue.push(path);
+          continue;
+        }
+        if (type !== "file") continue;
+        if (!isImageFilename(name)) continue;
+        out.push({
+          id: path,
+          repoPath: path,
+          name,
+          publicUrl: `../${path}`,
+          sitePath: `/${path}`,
+        });
+      }
+    }
+
+    out.sort((a, b) => a.repoPath.localeCompare(b.repoPath));
+    return out;
+  }
+
+  function pageCount() {
+    return Math.max(1, Math.ceil(allImages.length / pageSize));
+  }
+
+  function clampPageIndex(next) {
+    const maxIndex = pageCount() - 1;
+    return Math.min(Math.max(0, Number(next) || 0), maxIndex);
+  }
+
+  /**
+   * 复制文本到剪贴板（优先使用 Clipboard API）。
+   * 目的：在 HTTPS / 权限受限情况下仍尽量提供可用的复制能力。
+   */
+  async function copyText(text) {
+    const value = String(text ?? "");
+    if (!value) return false;
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "true");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+
+  /**
+   * 生成本站 Markdown 渲染器的图片语法。
+   * 目的：保证图床 copy 与预览 copy 输出一致，避免分叉维护。
+   */
+  function markdownForImage(it) {
+    const name = String(it?.name ?? "").trim();
+    const sitePath = String(it?.sitePath ?? "").trim();
+    return `![${name}](${sitePath}){scale=50%}`;
+  }
+
+  /**
+   * 打开大图预览弹层。
+   * 目的：在不离开后台页面的情况下快速检查图片，并提供 copy/close。
+   */
+  function openPreview(it) {
+    if (!it) return;
+    previewMdText = markdownForImage(it);
+    previewRepoPath = String(it.repoPath ?? "").trim();
+    previewCopyBtn.title = previewMdText;
+    previewImg.src = String(it.publicUrl ?? "");
+    previewImg.alt = String(it.name ?? "");
+
+    if (!previewOverlay.isConnected) center.appendChild(previewOverlay);
+    previewOverlay.hidden = false;
+
+    previewGridHiddenBackup = grid.hidden;
+    grid.hidden = true;
+    previewFabHiddenBackup = fab.hidden;
+    fab.hidden = true;
+
+    if (!previewKeyHandler) {
+      previewKeyHandler = (e) => {
+        if (e.key === "Escape") closePreview();
+      };
+      window.addEventListener("keydown", previewKeyHandler);
+    }
+  }
+
+  /**
+   * 关闭大图预览弹层。
+   * 目的：保持与文件编辑器一致的“close/ESC”退出体验。
+   */
+  function closePreview() {
+    previewOverlay.hidden = true;
+    previewImg.src = "";
+    previewImg.alt = "";
+    previewMdText = "";
+    previewRepoPath = "";
+    grid.hidden = previewGridHiddenBackup;
+    fab.hidden = previewFabHiddenBackup;
+
+    if (previewKeyHandler) {
+      window.removeEventListener("keydown", previewKeyHandler);
+      previewKeyHandler = null;
+    }
+  }
+
+  /**
+   * 删除文件（GitHub Contents API DELETE）。
+   * 注意：必须携带 sha（由 getFileShaFromGitHub() 获取），否则会被 GitHub 拒绝。
+   */
+  async function deleteFileOnGitHub(repoPath, sha, options = {}) {
+    const message = String(options.message ?? `admin delete ${repoPath}`).trim() || `admin delete ${repoPath}`;
+    const payload = { message, sha: String(sha ?? "") };
+    const res = await githubRequest(contentsApiUrl(repoPath), {
+      method: "DELETE",
+      cacheBust: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Delete failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+    }
+    return await res.json().catch(() => null);
+  }
+
+  /**
+   * 把 Blob 转换成 base64（不含 data: 前缀）。
+   * 目的：对齐 GitHub Contents API 的 content 字段格式。
+   */
+  async function blobToBase64(blob) {
+    const b = blob instanceof Blob ? blob : null;
+    if (!b) return "";
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(reader.error || new Error("Read blob failed"));
+      reader.readAsDataURL(b);
+    });
+    const idx = dataUrl.indexOf(",");
+    if (idx === -1) return "";
+    return dataUrl.slice(idx + 1);
+  }
+
+  /**
+   * 把上传的图片转换为 WebP。
+   *
+   * 约定：
+   * - 原文件若已经是 webp，则不重复编码
+   * - 其它格式使用 Canvas 重新编码为 image/webp
+   *
+   * 目的：统一图床资源格式，避免不同编码造成体积与渲染差异。
+   */
+  async function convertImageFileToWebp(file) {
+    const f = file instanceof File ? file : null;
+    if (!f) throw new Error("No file selected");
+    const isWebp = String(f.type ?? "").toLowerCase() === "image/webp" || String(f.name ?? "").toLowerCase().endsWith(".webp");
+    if (isWebp) return f;
+
+    const bitmap = await createImageBitmap(f);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width || 1;
+    canvas.height = bitmap.height || 1;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not supported");
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.9));
+    if (!(blob instanceof Blob)) throw new Error("WebP encode failed");
+    return blob;
+  }
+
+  /**
+   * 清理文件名中的危险字符，生成适合 GitHub path 的 basename。
+   * 目的：避免引入斜杠、控制字符等导致路径异常。
+   */
+  function sanitizeBasename(name) {
+    const raw = String(name ?? "").trim();
+    if (!raw) return "image";
+    const safe = raw
+      .replace(/\.[^/.]+$/u, "")
+      .replaceAll("\\", "-")
+      .replaceAll("/", "-")
+      .replaceAll("..", ".")
+      .replaceAll(" ", "-")
+      .replace(/[^\w.-]+/gu, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[-.]+/, "")
+      .replace(/[-.]+$/, "");
+    return safe || "image";
+  }
+
+  function timestampForFilename() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const y = d.getFullYear();
+    const m = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mm = pad(d.getMinutes());
+    const ss = pad(d.getSeconds());
+    return `${y}${m}${day}-${hh}${mm}${ss}`;
+  }
+
+  /**
+   * 获取文件 sha（用于覆盖写入）。
+   * 说明：当文件不存在（404）时返回空字符串。
+   */
+  async function getFileShaFromGitHub(repoPath) {
+    const res = await githubRequest(contentsApiUrl(repoPath), { method: "GET", cacheBust: true });
+    if (res.status === 404) return "";
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Load file failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+    }
+    const data = await res.json().catch(() => null);
+    const sha = String(data?.sha ?? "").trim();
+    return sha;
+  }
+
+  /**
+   * 上传/覆盖文件（GitHub Contents API PUT）。
+   * 说明：当 sha 存在时表示覆盖，否则创建新文件。
+   */
+  async function putFileToGitHub(repoPath, contentBase64, options = {}) {
+    const message = String(options.message ?? `admin upload ${repoPath}`).trim() || `admin upload ${repoPath}`;
+    const sha = String(options.sha ?? "").trim();
+    const payload = { message, content: String(contentBase64 ?? "") };
+    if (sha) payload.sha = sha;
+    const res = await githubRequest(contentsApiUrl(repoPath), {
+      method: "PUT",
+      cacheBust: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Upload failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+    }
+    return await res.json().catch(() => null);
+  }
+
+  function updateNavEnabled() {
+    const pages = pageCount();
+    const idx = clampPageIndex(currentPageIndex);
+
+    setActionEnabled(prevBtn, !isLoading && idx > 0);
+    setActionEnabled(nextBtn, !isLoading && idx < pages - 1);
+    setActionEnabled(refreshBtn, !isLoading);
+    setActionEnabled(uploadBtn, !isLoading && !isUploading && !isDeleting);
+    setActionEnabled(deleteBtn, !isLoading && !isUploading && !isDeleting && selectedRepoPaths.size > 0);
+    pageSelect.disabled = isLoading || pages <= 1;
+    pageSelect.style.opacity = pageSelect.disabled ? "0.7" : "1";
+  }
+
+  /**
+   * 生成页码下拉选项。
+   * 目的：复用与其它管理页一致的头部“中部下拉”交互形态。
+   */
+  function rebuildPageSelect() {
+    const pages = pageCount();
+    pageSelect.replaceChildren();
+
+    for (let i = 0; i < pages; i += 1) {
+      const start = i * pageSize + 1;
+      const end = Math.min(allImages.length, (i + 1) * pageSize);
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = allImages.length > 0 ? `Page ${i + 1}/${pages} (${start}-${end})` : `Page ${i + 1}/${pages}`;
+      pageSelect.appendChild(opt);
+    }
+
+    currentPageIndex = clampPageIndex(currentPageIndex);
+    pageSelect.value = String(currentPageIndex);
+    updateNavEnabled();
+  }
+
+  function createImageCard(it) {
+    const card = document.createElement("div");
+    card.className = "adminImageCard";
+
+    const link = document.createElement("a");
+    link.className = "adminImageLink";
+    link.href = it.publicUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      openPreview(it);
+    });
+
+    const img = document.createElement("img");
+    img.className = "adminImage";
+    img.src = it.publicUrl;
+    img.alt = it.name;
+    img.loading = "lazy";
+    link.appendChild(img);
+
+    const meta = document.createElement("div");
+    meta.className = "adminImageMeta";
+
+    const check = document.createElement("input");
+    check.className = "adminImageCheck";
+    check.type = "checkbox";
+    check.checked = selectedRepoPaths.has(it.repoPath);
+    check.setAttribute("aria-label", "Select Image");
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", () => {
+      if (check.checked) selectedRepoPaths.add(it.repoPath);
+      else selectedRepoPaths.delete(it.repoPath);
+      updateNavEnabled();
+    });
+
+    const name = document.createElement("div");
+    name.className = "adminImageName";
+    name.textContent = it.repoPath;
+
+    const copyBtn = document.createElement("code");
+    copyBtn.className = "cmdButton adminImageCopyBtn";
+    copyBtn.textContent = "copy";
+    const mdImage = markdownForImage(it);
+    copyBtn.title = mdImage;
+    copyBtn.addEventListener("click", () => {
+      void (async () => {
+        try {
+          await copyText(mdImage);
+          setHint("Copied markdown");
+        } catch {
+          setHint("Copy failed");
+        }
+      })();
+    });
+
+    meta.appendChild(check);
+    meta.appendChild(name);
+    meta.appendChild(copyBtn);
+
+    card.appendChild(link);
+    card.appendChild(meta);
+    return card;
+  }
+
+  /**
+   * 删除图片（支持批量）。
+   *
+   * 规则：
+   * - 仅允许删除 image 目录下的文件
+   * - 删除前必须通过 Contents API 获取 sha
+   * - 删除后重新拉取索引并刷新瀑布流
+   */
+  async function deleteImages(repoPaths) {
+    const paths = Array.isArray(repoPaths) ? repoPaths.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
+    if (paths.length === 0) return;
+    if (isDeleting || isUploading || isLoading) return;
+
+    const ok = window.confirm(`Ensure to delete ${paths.length} file(s)?`);
+    if (!ok) return;
+
+    isDeleting = true;
+    updateNavEnabled();
+    setHint("Deleting…", { ttlMs: 900 });
+
+    try {
+      for (const p of paths) {
+        if (!p.startsWith("image/")) throw new Error("Permission denied");
+        const sha = await getFileShaFromGitHub(p);
+        if (!sha) throw new Error("Missing sha");
+        await deleteFileOnGitHub(p, sha);
+        selectedRepoPaths.delete(p);
+      }
+
+      await refreshImages({ silentHint: true });
+      setHint(`Successful (${paths.length})`, { ttlMs: 1600 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err ?? "Delete failed");
+      setHint(msg || "Delete failed", { ttlMs: 2400 });
+    } finally {
+      isDeleting = false;
+      updateNavEnabled();
+    }
+  }
+
+  function renderCurrentPage() {
+    const pages = pageCount();
+    currentPageIndex = clampPageIndex(currentPageIndex);
+
+    const start = currentPageIndex * pageSize;
+    const end = Math.min(allImages.length, start + pageSize);
+    const items = allImages.slice(start, end);
+
+    if (allImages.length === 0) {
+      empty.textContent = emptyText;
+      empty.hidden = false;
+      grid.hidden = true;
+      grid.replaceChildren();
+      rebuildPageSelect();
+      return;
+    }
+
+    if (items.length === 0) {
+      empty.textContent = emptyText;
+      empty.hidden = false;
+      grid.hidden = true;
+      grid.replaceChildren();
+      rebuildPageSelect();
+      return;
+    }
+
+    empty.hidden = true;
+    grid.hidden = false;
+    grid.replaceChildren(...items.map((it) => createImageCard(it)));
+    rebuildPageSelect();
+
+    updateNavEnabled();
+    setHint(`Images: ${allImages.length} · Page ${currentPageIndex + 1}/${pages}`, { ttlMs: 900, priority: "auto" });
+  }
+
+  /**
+   * 拉取并刷新图片索引（仅索引目录，不下载二进制内容）。
+   * 目的：让瀑布流展示与分页保持同步，同时把网络过程收敛到一个入口。
+   */
+  async function refreshImages(options = {}) {
+    const { silentHint = false } = options;
+    if (isLoading) return;
+    isLoading = true;
+    updateNavEnabled();
+
+    empty.textContent = loadingText;
+    empty.hidden = false;
+    grid.hidden = true;
+    grid.replaceChildren();
+
+    try {
+      allImages = await fetchAllImagesInRepo();
+      currentPageIndex = clampPageIndex(currentPageIndex);
+      renderCurrentPage();
+      if (!silentHint) setHint("Refreshed");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err ?? "Load images failed");
+      empty.textContent = msg || "Load images failed";
+      empty.hidden = false;
+      grid.hidden = true;
+      grid.replaceChildren();
+      setHint("Failed");
+    } finally {
+      isLoading = false;
+      updateNavEnabled();
+    }
+  }
+
+  /**
+   * 上传图片到 /image，并在后台转换为 webp。
+   *
+   * 交互：
+   * - 点击 upload 触发文件选择
+   * - 选择后执行：转 webp -> PUT 写入 GitHub -> 重新索引 image 并刷新瀑布流
+   */
+  async function uploadImageToRepo() {
+    if (isUploading || isLoading) return;
+    const file = uploadInput.files && uploadInput.files[0] ? uploadInput.files[0] : null;
+    if (!(file instanceof File)) return;
+
+    isUploading = true;
+    updateNavEnabled();
+    setHint("Uploading…", { ttlMs: 900 });
+
+    try {
+      const webpBlob = await convertImageFileToWebp(file);
+      const base = sanitizeBasename(file.name);
+      const repoFilename = `${base}-${timestampForFilename()}.webp`;
+      const repoPath = `image/${repoFilename}`;
+      const contentBase64 = await blobToBase64(webpBlob);
+      if (!contentBase64) throw new Error("Encode base64 failed");
+
+      const sha = await getFileShaFromGitHub(repoPath);
+      await putFileToGitHub(repoPath, contentBase64, { sha, message: `admin upload ${repoPath}` });
+      await refreshImages({ silentHint: true });
+      setHint("successful", { ttlMs: 1800 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err ?? "Upload failed");
+      setHint(msg || "Upload failed", { ttlMs: 1800 });
+    } finally {
+      isUploading = false;
+      uploadInput.value = "";
+      updateNavEnabled();
+    }
+  }
+
+  prevBtn.addEventListener("click", () => {
+    currentPageIndex = clampPageIndex(currentPageIndex - 1);
+    renderCurrentPage();
+  });
+  nextBtn.addEventListener("click", () => {
+    currentPageIndex = clampPageIndex(currentPageIndex + 1);
+    renderCurrentPage();
+  });
+  refreshBtn.addEventListener("click", () => {
+    void refreshImages();
+  });
+  deleteBtn.addEventListener("click", () => {
+    void deleteImages(Array.from(selectedRepoPaths));
+  });
+  pageSelect.addEventListener("change", () => {
+    currentPageIndex = clampPageIndex(parseInt(pageSelect.value, 10));
+    renderCurrentPage();
+  });
+
+  uploadBtn.addEventListener("click", () => {
+    if (isUploading || isLoading) return;
+    uploadInput.value = "";
+    uploadInput.click();
+  });
+  uploadInput.addEventListener("change", () => {
+    void uploadImageToRepo();
+  });
+
+  previewOverlay.addEventListener("click", (e) => {
+    if (e.target !== previewOverlay) return;
+    closePreview();
+  });
+  previewCloseBtn.addEventListener("click", () => {
+    closePreview();
+  });
+  previewCopyBtn.addEventListener("click", () => {
+    void (async () => {
+      try {
+        await copyText(previewMdText);
+        setHint("Copied markdown");
+      } catch {
+        setHint("Copy failed");
+      }
+    })();
+  });
+  previewDeleteBtn.addEventListener("click", () => {
+    void (async () => {
+      const repoPath = String(previewRepoPath ?? "").trim();
+      if (!repoPath) return;
+      closePreview();
+      await deleteImages([repoPath]);
+    })();
+  });
+
+  if (!owner || !repoName) {
+    empty.textContent = "GitHub repo not configured.";
+    empty.hidden = false;
+    updateNavEnabled();
+    rebuildPageSelect();
+    return page;
+  }
+
+  updateNavEnabled();
+  rebuildPageSelect();
+  void refreshImages();
+  return page;
+}
+
+/**
  * 渲染管理界面。
  * @param {HTMLElement} root
  */
@@ -1900,15 +2762,39 @@ export function renderAdmin(root) {
   const views = new Map([
     ["comments", () => createCommentsManagementView(entries)],
     ["files", () => createFilesManagementView()],
+    ["images", () => createImageHostingView()],
   ]);
 
   const tabDefs = [
     { key: "comments", title: "Comment Management" },
     { key: "files", title: "File Management" },
+    { key: "images", title: "Image Hosting" },
   ];
 
   let activeKey = "comments";
   const tabEls = new Map();
+
+  /**
+   * 全局导航桥：让不同 tab 的局部 UI 可以触发跨模块跳转。
+   *
+   * 当前用途：
+   * - 文件管理在 image 目录点击 upload：跳转到图床并触发图床 upload
+   *
+   * 说明：使用 window 事件而不是参数传递，避免把 createFilesManagementView 与壳层强耦合。
+   */
+  if (!window.__tdpbAdminImagesUploadHookV1) {
+    window.__tdpbAdminImagesUploadHookV1 = true;
+    window.addEventListener("tdpb_admin_images_request_upload", () => {
+      /**
+       * 重要：不要用 setTimeout/Promise 等异步边界。
+       * 原因：浏览器的文件选择器只能在“用户手势”触发链路里打开，
+       * 一旦跨异步任务就会丢失 user activation，导致 input.click() 无效。
+       */
+      setActiveTab("images");
+      const input = body.querySelector('.adminImagesPage input[type="file"][aria-hidden="true"]');
+      if (input instanceof HTMLInputElement) input.click();
+    });
+  }
 
   function setActiveTab(nextKey) {
     activeKey = nextKey;

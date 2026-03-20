@@ -10,16 +10,16 @@
 
 body {
   /* 管理页使用全高布局，让登录卡片始终垂直居中 */
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .adminLayout {
-  /* 页面容器：居中显示登录/管理壳层 */
-  min-height: 100vh;
+  /* 页面容器：靠左显示登录/管理壳层 */
+  min-height: 100dvh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0;
 }
 
 .adminStage {
@@ -31,7 +31,7 @@ body {
   */
   --adminStageMaxWidth: var(--adminLoginMaxWidth);
   --adminStageShiftX: 0px;
-  width: min(var(--adminStageMaxWidth), calc(100vw - 36px));
+  width: min(var(--adminStageMaxWidth), 100vw);
   overflow: hidden;
   opacity: 0;
   transform: translate(var(--adminStageShiftX), 10px);
@@ -42,8 +42,8 @@ body {
 #adminStage.adminStage {
   /* 管理面板阶段：允许更宽一些，容纳管理布局（标签页/列表等） */
   --adminStageMaxWidth: var(--adminPanelMaxWidth);
-  --adminStageShiftX: -36px;
-  max-height: calc(100vh - 36px);
+  --adminStageShiftX: 0px;
+  max-height: calc(100dvh - 36px);
 }
 
 .adminStageActive {
@@ -405,6 +405,130 @@ body {
   bottom: 12px;
 }
 
+.adminImagesCenter {
+  /* 图床：与文件/评论管理一致的中部容器（边框 + 内部滚动） */
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+  background: var(--panel2);
+  padding: 10px;
+  padding-bottom: 62px;
+  position: relative;
+}
+
+.adminImagesFab {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 4;
+}
+
+.adminImagesCenter .adminUploadBtn {
+  position: static;
+}
+
+.adminImageMasonry {
+  /* 瀑布流：用 CSS columns 实现轻量 masonry */
+  column-count: 3;
+  column-gap: 10px;
+}
+
+.adminImageCard {
+  break-inside: avoid;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.adminImageLink {
+  display: block;
+}
+
+.adminImage {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.adminImageMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.adminImageCheck {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.adminImageName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.adminImageCopyBtn {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.adminImagePreviewOverlay {
+  /* 大图预览：覆盖分页容器（图床中部），不遮挡顶部分页控件 */
+  position: relative;
+  width: 100%;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.56);
+}
+
+.adminImagePreviewOverlay[hidden] {
+  display: none;
+}
+
+.adminImagePreviewPanel {
+  /* 大图预览：图片承载容器（宽度不超出分页容器，纵向按内容自然扩展） */
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+  position: relative;
+}
+
+.adminImagePreviewImg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.adminImagePreviewActions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .adminCommentRow {
   /* 一条评论：复选框 + commentItem 并排 */
   display: flex;
@@ -438,6 +562,111 @@ body {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+@media (max-width: 860px) {
+  .adminImageMasonry {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 520px) {
+  .adminImageMasonry {
+    column-count: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .adminStage {
+    width: 100vw;
+  }
+
+  #adminStage.adminStage {
+    height: 100dvh;
+    max-height: none;
+  }
+
+  .adminHeader {
+    padding: 14px 14px 10px;
+  }
+
+  .adminBody {
+    padding: 12px 14px 14px;
+  }
+
+  .adminRow {
+    flex-wrap: wrap;
+  }
+
+  .adminBrowserBar {
+    padding: 8px 10px;
+  }
+
+  .adminTabs {
+    overflow: auto;
+    scrollbar-width: none;
+  }
+
+  .adminTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .adminTab {
+    flex: 0 0 auto;
+  }
+
+  .adminPage {
+    padding: 12px;
+  }
+
+  .adminPageHeader {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .adminPageActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .adminPageTitleBox {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .adminSelect {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .adminEditor {
+    position: fixed;
+    inset: 12px;
+    z-index: 50;
+  }
+}
+
+@media (max-width: 420px) {
+  .adminTitle {
+    font-size: 30px;
+  }
+
+  .adminPageActions {
+    gap: 8px;
+  }
+
+  .adminTab {
+    padding: 6px 8px;
+  }
+
+  .adminImagePreviewOverlay {
+    padding: 10px;
+  }
+
+  .adminImagePreviewPanel {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

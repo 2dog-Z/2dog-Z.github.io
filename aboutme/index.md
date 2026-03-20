@@ -5,7 +5,7 @@ date: 2026-03-16
 
 ## Hi, I'm Chaobo Zhang (Chambers)
 
-![Me](/image/me.png){scale=1/3}
+![me-20260320-145518.webp](/image/me-20260320-145518.webp){scale=1/3}
 
 > **"Earn your freedom, then live it."**
 
