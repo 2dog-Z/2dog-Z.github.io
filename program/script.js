@@ -1,8 +1,8 @@
 const TIER_DEFINITIONS = [
-  { id: "lottery", label: "Lottery | 彩票"},
-  { id: "reach", label: "Reach | 冲刺"},
-  { id: "match", label: "Match | 主申"},
-  { id: "safety", label: "Safety | 保底"}
+  { id: "lottery", label: "Lottery | 彩票" },
+  { id: "reach", label: "Reach | 冲刺" },
+  { id: "match", label: "Match | 主申" },
+  { id: "safety", label: "Safety | 保底" }
 ];
 
 const SCHOOL_OPTIONS = [
@@ -52,8 +52,19 @@ const SCHOOL_OPTIONS = [
   { id: "uw", short: "UW", cn: "华盛顿大学西雅图分校", en: "University of Washington", domain: "www.washington.edu" },
   { id: "nyu", short: "NYU", cn: "纽约大学", en: "New York University", domain: "www.nyu.edu" },
   { id: "tamu", short: "Texas A&M", cn: "德州农工大学", en: "Texas A&M University", domain: "www.tamu.edu" },
-  { id: "neu", short: "Northeastern", cn: "东北大学", en: "Northeastern University", domain: "www.northeastern.edu" },
+  { id: "neu", short: "Northeastern", cn: "东北大学", en: "Northeastern University", domain: "www.northeastern.edu" }
 ];
+
+const STATUS_DEFINITIONS = {
+  draft: { id: "draft", label: "未投递", shortLabel: "未投递", colorClass: "is-gray" },
+  applied: { id: "applied", label: "已投递✉️", shortLabel: "已投递✉️", colorClass: "is-green" },
+  interview: { id: "interview", label: "面试👨🏻‍💼", shortLabel: "面试👨🏻‍💼", colorClass: "is-green" },
+  waitlist: { id: "waitlist", label: "WL⌛️", shortLabel: "WL⌛️", colorClass: "is-yellow" },
+  admitted: { id: "admitted", label: "Admitted✅", shortLabel: "Admitted✅", colorClass: "is-green" },
+  reject: { id: "reject", label: "Reject❌", shortLabel: "Reject❌", colorClass: "is-red" }
+};
+
+const TERMINAL_STATUSES = new Set(["admitted", "reject"]);
 
 const DEFAULT_PROGRAMS = [
   {
@@ -62,7 +73,8 @@ const DEFAULT_PROGRAMS = [
     shortName: "AIE-ECE",
     schoolId: "cmu",
     cnName: "人工智能工程理学硕士（电气与计算机工程方向）",
-    enName: "M.S. in Artificial Intelligence Engineering - ECE"
+    enName: "M.S. in Artificial Intelligence Engineering - ECE",
+    statusHistory: []
   },
   {
     id: createId(),
@@ -70,7 +82,8 @@ const DEFAULT_PROGRAMS = [
     shortName: "MSCS (1-yr)",
     schoolId: "yale",
     cnName: "计算机科学理学硕士（一年制）",
-    enName: "MSc in Computer Science (One-Year Program)"
+    enName: "MSc in Computer Science (One-Year Program)",
+    statusHistory: []
   },
   {
     id: createId(),
@@ -78,7 +91,8 @@ const DEFAULT_PROGRAMS = [
     shortName: "MCS - Chicago",
     schoolId: "uiuc",
     cnName: "计算机科学硕士（芝加哥校区）",
-    enName: "Master of Computer Science in Chicago"
+    enName: "Master of Computer Science in Chicago",
+    statusHistory: []
   }
 ];
 
@@ -137,6 +151,7 @@ const elements = {
   schoolSelect: document.querySelector("#program-school"),
   cnNameInput: document.querySelector("#program-cn-name"),
   enNameInput: document.querySelector("#program-en-name"),
+  statusSelect: document.querySelector("#program-status"),
   saveStatus: document.querySelector("#save-status"),
   modalLogo: document.querySelector("#modal-school-logo"),
   modalLogoPlaceholder: document.querySelector("#modal-logo-placeholder")
@@ -163,21 +178,22 @@ async function initialize() {
   bindModalEvents();
   bindFormEvents();
 
-  state.programs = loadLocalCache();
+  state.programs = normalizePrograms(loadLocalCache());
   renderBoard();
 
-  if (isGithubConfigured()) {
-    const remotePrograms = await loadFromGithubIssues();
-    if (remotePrograms) {
-      state.programs = remotePrograms;
-      saveLocalCache(state.programs);
-      renderBoard();
-      hideSaveStatus();
-    } else {
-      setSaveStatus("GitHub 数据加载失败，已回退到本地缓存", "error");
-    }
-  } else {
+  if (!isGithubConfigured()) {
     hideSaveStatus();
+    return;
+  }
+
+  const remotePrograms = await loadFromGithubIssues();
+  if (remotePrograms) {
+    state.programs = normalizePrograms(remotePrograms);
+    saveLocalCache(state.programs);
+    renderBoard();
+    hideSaveStatus();
+  } else {
+    setSaveStatus("GitHub 数据加载失败，已回退到本地缓存", "error");
   }
 }
 
@@ -217,25 +233,45 @@ function bindFormEvents() {
       shortName: elements.shortNameInput.value.trim(),
       schoolId: elements.schoolSelect.value,
       cnName: elements.cnNameInput.value.trim(),
-      enName: elements.enNameInput.value.trim()
+      enName: elements.enNameInput.value.trim(),
+      selectedStatus: elements.statusSelect.value
     };
 
-    if (!payload.shortName || !payload.schoolId || !payload.cnName || !payload.enName) {
+    if (!payload.shortName || !payload.schoolId || !payload.cnName || !payload.enName || !payload.selectedStatus) {
       return;
     }
 
     if (state.modalMode === "create") {
-      state.programs.push({
-        id: createId(),
-        tierId: state.activeTierId,
-        ...payload
-      });
+      const statusHistory = buildNextStatusHistory([], payload.selectedStatus);
+
+      state.programs.push(
+        normalizeProgram({
+          id: createId(),
+          tierId: state.activeTierId,
+          shortName: payload.shortName,
+          schoolId: payload.schoolId,
+          cnName: payload.cnName,
+          enName: payload.enName,
+          statusHistory
+        })
+      );
       renderBoard();
       scheduleSave("create", 120);
     } else {
-      state.programs = state.programs.map((program) =>
-        program.id === state.activeProgramId ? { ...program, ...payload } : program
-      );
+      state.programs = state.programs.map((program) => {
+        if (program.id !== state.activeProgramId) {
+          return program;
+        }
+
+        return normalizeProgram({
+          ...program,
+          shortName: payload.shortName,
+          schoolId: payload.schoolId,
+          cnName: payload.cnName,
+          enName: payload.enName,
+          statusHistory: buildNextStatusHistory(program.statusHistory, payload.selectedStatus)
+        });
+      });
       renderBoard();
       scheduleSave("edit", 120);
     }
@@ -266,23 +302,19 @@ function renderBoard() {
     const list = tierNode.querySelector(".tier-list");
 
     title.textContent = tier.label;
-    subtitle.textContent = tier.subtitle;
+    subtitle.textContent = tier.subtitle || "";
     list.dataset.tierId = tier.id;
 
     addButton.addEventListener("click", () => openCreateModal(tier.id));
     wireTierListDnD(list);
 
     const programs = getProgramsByTier(tier.id);
-
-    if (programs.length === 0) {
-      list.classList.add("empty");
-    } else {
-      list.classList.remove("empty");
-    }
+    list.classList.toggle("empty", programs.length === 0);
 
     programs.forEach((program) => {
       const cardNode = elements.programTemplate.content.firstElementChild.cloneNode(true);
-      const school = schoolMap.get(program.schoolId);
+      const school = getSchoolById(program.schoolId);
+      const currentStatus = getCurrentStatus(program);
 
       cardNode.dataset.programId = program.id;
       cardNode.dataset.tierId = program.tierId;
@@ -290,6 +322,10 @@ function renderBoard() {
       cardNode.querySelector(".program-title").textContent = `${program.shortName} @ ${school.short} ${school.cn}`;
       cardNode.querySelector(".program-subtitle").textContent = school.en;
       cardNode.querySelector(".program-description").textContent = `${program.cnName}，${program.enName}`;
+      cardNode.querySelector(".program-status-text").textContent = getCurrentStatusLabel(program);
+
+      const progressNode = cardNode.querySelector(".program-progress");
+      renderStatusProgress(progressNode, program);
 
       const editButton = cardNode.querySelector(".program-edit-button");
       editButton.addEventListener("click", () => openEditModal(program.id));
@@ -305,6 +341,20 @@ function renderBoard() {
 
     tierNode.dataset.tierId = tier.id;
     elements.board.appendChild(tierNode);
+  });
+}
+
+function renderStatusProgress(progressNode, program) {
+  progressNode.innerHTML = "";
+
+  const segments = getProgressSegments(program);
+  segments.forEach((segment) => {
+    const segmentNode = document.createElement("span");
+    segmentNode.className = `program-progress-segment ${segment.colorClass}`;
+    if (segment.title) {
+      segmentNode.title = segment.title;
+    }
+    progressNode.appendChild(segmentNode);
   });
 }
 
@@ -406,7 +456,7 @@ function syncProgramsFromDom() {
     }))
   );
 
-  const programMap = new Map(state.programs.map((program) => [program.id, { ...program }]));
+  const programMap = new Map(state.programs.map((program) => [program.id, normalizeProgram(program)]));
   const nextPrograms = [];
 
   document.querySelectorAll(".tier-list").forEach((list) => {
@@ -445,13 +495,13 @@ function openCreateModal(tierId) {
 
   elements.form.reset();
   elements.schoolSelect.value = SCHOOL_OPTIONS[0].id;
+  populateStatusSelect([], "draft:stay");
   updateModalSchoolPreview();
   showModal();
 }
 
 function openEditModal(programId) {
   const program = state.programs.find((item) => item.id === programId);
-
   if (!program) {
     return;
   }
@@ -468,8 +518,28 @@ function openEditModal(programId) {
   elements.schoolSelect.value = program.schoolId;
   elements.cnNameInput.value = program.cnName;
   elements.enNameInput.value = program.enName;
+
+  populateStatusSelect(program.statusHistory, `${getCurrentStatus(program)}:stay`);
   updateModalSchoolPreview();
   showModal();
+}
+
+function populateStatusSelect(statusHistory, selectedValue) {
+  const options = getStatusSelectChoices(statusHistory);
+  const fragment = document.createDocumentFragment();
+
+  options.forEach((choice) => {
+    const option = document.createElement("option");
+    option.value = choice.value;
+    option.textContent = choice.label;
+    fragment.appendChild(option);
+  });
+
+  elements.statusSelect.innerHTML = "";
+  elements.statusSelect.appendChild(fragment);
+  elements.statusSelect.value = options.some((choice) => choice.value === selectedValue)
+    ? selectedValue
+    : options[0].value;
 }
 
 function showModal() {
@@ -484,17 +554,185 @@ function closeModal() {
 }
 
 function updateModalSchoolPreview() {
-  const school = schoolMap.get(elements.schoolSelect.value);
-
-  if (!school) {
-    return;
-  }
-
+  const school = getSchoolById(elements.schoolSelect.value);
   loadSchoolLogo(elements.modalLogo, elements.modalLogoPlaceholder, school);
 }
 
+function normalizePrograms(programs) {
+  if (!Array.isArray(programs) || programs.length === 0) {
+    return structuredClone(DEFAULT_PROGRAMS).map(normalizeProgram);
+  }
+
+  return programs.map(normalizeProgram);
+}
+
+function normalizeProgram(program) {
+  const history = Array.isArray(program?.statusHistory)
+    ? program.statusHistory
+        .filter((entry) => entry && STATUS_DEFINITIONS[entry.status])
+        .map((entry) => ({
+          status: entry.status,
+          changedAt: typeof entry.changedAt === "string" ? entry.changedAt : new Date().toISOString()
+        }))
+    : [];
+
+  return {
+    id: typeof program?.id === "string" ? program.id : createId(),
+    tierId: program?.tierId || "match",
+    shortName: program?.shortName || "",
+    schoolId: schoolMap.has(program?.schoolId) ? program.schoolId : SCHOOL_OPTIONS[0].id,
+    cnName: program?.cnName || "",
+    enName: program?.enName || "",
+    statusHistory: history
+  };
+}
+
+function getCurrentStatus(program) {
+  const history = Array.isArray(program?.statusHistory) ? program.statusHistory : [];
+  return history.length ? history[history.length - 1].status : "draft";
+}
+
+function getCurrentStatusLabel(program) {
+  const history = Array.isArray(program?.statusHistory) ? program.statusHistory : [];
+  if (history.length === 0) {
+    return STATUS_DEFINITIONS.draft.label;
+  }
+
+  return getHistoryEntryLabel(history[history.length - 1], history, history.length - 1);
+}
+
+function getStatusSelectChoices(statusHistory) {
+  const history = Array.isArray(statusHistory) ? statusHistory : [];
+  const currentStatus = history.length ? history[history.length - 1].status : "draft";
+  const currentInterviewRound = getInterviewRoundFromHistory(history);
+
+  if (currentStatus === "draft") {
+    return [
+      { value: "draft:stay", label: STATUS_DEFINITIONS.draft.label },
+      { value: "applied:append", label: STATUS_DEFINITIONS.applied.label }
+    ];
+  }
+
+  if (currentStatus === "applied") {
+    return [
+      { value: "applied:stay", label: STATUS_DEFINITIONS.applied.label },
+      { value: "interview:append", label: "第1次面试👨🏻‍💼" },
+      { value: "admitted:append", label: STATUS_DEFINITIONS.admitted.label },
+      { value: "waitlist:append", label: STATUS_DEFINITIONS.waitlist.label },
+      { value: "reject:append", label: STATUS_DEFINITIONS.reject.label }
+    ];
+  }
+
+  if (currentStatus === "interview") {
+    return [
+      { value: "interview:stay", label: `第${currentInterviewRound}次面试👨🏻‍💼` },
+      { value: "interview:append", label: `第${currentInterviewRound + 1}次面试👨🏻‍💼` },
+      { value: "admitted:append", label: STATUS_DEFINITIONS.admitted.label },
+      { value: "waitlist:append", label: STATUS_DEFINITIONS.waitlist.label },
+      { value: "reject:append", label: STATUS_DEFINITIONS.reject.label }
+    ];
+  }
+
+  if (currentStatus === "waitlist") {
+    return [
+      { value: "waitlist:stay", label: STATUS_DEFINITIONS.waitlist.label },
+      { value: "admitted:append", label: STATUS_DEFINITIONS.admitted.label },
+      { value: "reject:append", label: STATUS_DEFINITIONS.reject.label }
+    ];
+  }
+
+  if (currentStatus === "admitted") {
+    return [{ value: "admitted:stay", label: STATUS_DEFINITIONS.admitted.label }];
+  }
+
+  if (currentStatus === "reject") {
+    return [{ value: "reject:stay", label: STATUS_DEFINITIONS.reject.label }];
+  }
+
+  return [{ value: "draft:stay", label: STATUS_DEFINITIONS.draft.label }];
+}
+
+function buildNextStatusHistory(currentHistory, selectedStatus) {
+  const history = Array.isArray(currentHistory) ? currentHistory.map((entry) => ({ ...entry })) : [];
+  const currentStatus = history.length ? history[history.length - 1].status : "draft";
+  const [targetStatus, action] = String(selectedStatus || "").split(":");
+
+  if (action !== "append" || !STATUS_DEFINITIONS[targetStatus]) {
+    return history;
+  }
+
+  const allowedChoices = getStatusSelectChoices(history)
+    .filter((choice) => choice.value.endsWith(":append"))
+    .map((choice) => choice.value);
+
+  if (!allowedChoices.includes(`${targetStatus}:append`)) {
+    return history;
+  }
+
+  history.push({
+    status: targetStatus,
+    changedAt: new Date().toISOString()
+  });
+
+  return history;
+}
+
+function getProgressSegments(program) {
+  const history = Array.isArray(program.statusHistory) ? program.statusHistory : [];
+
+  if (history.length === 0) {
+    return [{ colorClass: STATUS_DEFINITIONS.draft.colorClass, title: "" }];
+  }
+
+  const segments = history.map((entry, index) => {
+    const definition = STATUS_DEFINITIONS[entry.status];
+    return {
+      colorClass: definition.colorClass,
+      title: `${getHistoryEntryLabel(entry, history, index)}\n${formatStatusTime(entry.changedAt)}`
+    };
+  });
+
+  if (!TERMINAL_STATUSES.has(getCurrentStatus(program))) {
+    segments.push({ colorClass: STATUS_DEFINITIONS.draft.colorClass, title: "" });
+  }
+
+  return segments;
+}
+
+function formatStatusTime(changedAt) {
+  try {
+    return `更改时间：${new Date(changedAt).toLocaleString("zh-CN", { hour12: false })}`;
+  } catch (error) {
+    return "更改时间：未知";
+  }
+}
+
+function getInterviewRoundFromHistory(history, targetIndex = history.length - 1) {
+  let round = 0;
+  for (let index = 0; index <= targetIndex; index += 1) {
+    if (history[index]?.status === "interview") {
+      round += 1;
+    }
+  }
+  return round;
+}
+
+function getHistoryEntryLabel(entry, history, index) {
+  if (entry.status === "interview") {
+    return `第${getInterviewRoundFromHistory(history, index)}次面试👨🏻‍💼`;
+  }
+
+  return STATUS_DEFINITIONS[entry.status]?.label || "";
+}
+
+function getSchoolById(schoolId) {
+  return schoolMap.get(schoolId) || SCHOOL_OPTIONS[0];
+}
+
 function loadSchoolLogo(imgElement, placeholderElement, school) {
-  if (!school) {
+  if (!school || !school.domain) {
+    placeholderElement.hidden = false;
+    imgElement.hidden = true;
     return;
   }
 
@@ -531,17 +769,20 @@ function scheduleSave(reason, delay) {
     programCount: state.programs.length
   });
   // #endregion
+
   hideSaveStatus();
   if (delay <= 0) {
     persistState(reason);
     return;
   }
+
   state.saveTimer = window.setTimeout(() => {
     persistState(reason);
   }, delay);
 }
 
 async function persistState(reason) {
+  state.programs = normalizePrograms(state.programs);
   saveLocalCache(state.programs);
 
   if (!isGithubConfigured()) {
@@ -570,8 +811,8 @@ async function persistState(reason) {
     programCount: state.programs.length
   });
   // #endregion
-  hideSaveStatus();
 
+  hideSaveStatus();
   const ok = await saveToGithubIssues(state.programs);
   state.syncing = false;
 
@@ -606,7 +847,7 @@ function loadLocalCache() {
 
 function saveLocalCache(programs) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(programs));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizePrograms(programs)));
   } catch (error) {
     console.error("写入本地缓存失败:", error);
   }
@@ -632,7 +873,7 @@ async function loadFromGithubIssues() {
       parsedCount: Array.isArray(parsed) ? parsed.length : null
     });
     // #endregion
-    return Array.isArray(parsed) && parsed.length ? parsed : null;
+    return Array.isArray(parsed) && parsed.length ? normalizePrograms(parsed) : null;
   } catch (error) {
     // #region debug-point D:load-error
     reportDebugEvent("D", "script.js:loadFromGithubIssues", "loadFromGithubIssues threw", {
@@ -730,12 +971,14 @@ async function findStateIssue() {
 
   const issues = await response.json();
   const matchedIssue = issues.find((issue) => issue.title === GITHUB_SYNC_CONFIG.issueTitle) || null;
+
   // #region debug-point D:find-issue-result
   reportDebugEvent("D", "script.js:findStateIssue", "findStateIssue completed", {
     issueCount: Array.isArray(issues) ? issues.length : null,
     matchedIssueNumber: matchedIssue?.number ?? null
   });
   // #endregion
+
   return matchedIssue;
 }
 
@@ -744,7 +987,7 @@ function buildIssueBody(programs) {
     "Interactive school list state.",
     "",
     ISSUE_BODY_MARKER_START,
-    JSON.stringify(programs, null, 2),
+    JSON.stringify(normalizePrograms(programs), null, 2),
     ISSUE_BODY_MARKER_END
   ].join("\n");
 }

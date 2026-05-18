@@ -16,7 +16,7 @@
   --radius-lg: 20px;
   --radius-md: 14px;
   --radius-sm: 10px;
-  --logo-size: 60px;
+  --logo-size: 48px;
 }
 
 * {
@@ -208,12 +208,54 @@ h1 {
 .program-header {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 24px;
   align-items: flex-start;
 }
 
 .program-title-group {
   min-width: 0;
+  flex: 1;
+}
+
+.program-status-side {
+  display: flex;
+  flex: 0 0 180px;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  padding-top: 2px;
+}
+
+.program-progress {
+  display: flex;
+  gap: 4px;
+  min-height: 10px;
+}
+
+.program-progress-segment {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: #d7dde7;
+}
+
+.program-progress-segment.is-green {
+  background: #3fa564;
+}
+
+.program-progress-segment.is-yellow {
+  background: #d8a92f;
+}
+
+.program-progress-segment.is-red {
+  background: #d24a4a;
+}
+
+.program-status-text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.35;
 }
 
 .program-title {
@@ -474,6 +516,11 @@ h1 {
   .school-preview-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .program-status-side {
+    width: 100%;
+    flex-basis: auto;
   }
 
   .school-select-row {

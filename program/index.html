@@ -56,6 +56,11 @@
           <textarea id="program-en-name" name="enName" rows="3" required maxlength="240"></textarea>
         </label>
 
+        <label>
+          <span>项目状态</span>
+          <select id="program-status" name="status"></select>
+        </label>
+
         <div class="modal-actions">
           <button id="delete-button" class="action-button danger hidden" type="button">删除</button>
           <div class="spacer"></div>
@@ -83,13 +88,17 @@
     <article class="program-card" draggable="true">
       <div class="program-content">
         <div class="program-header">
+          <div class="logo-frame">
+            <div class="logo-placeholder"></div>
+            <img class="school-logo" alt="" hidden>
+          </div>
           <div class="program-title-group">
             <h3 class="program-title"></h3>
             <p class="program-subtitle"></p>
           </div>
-          <div class="logo-frame">
-            <div class="logo-placeholder"></div>
-            <img class="school-logo" alt="" hidden>
+          <div class="program-status-side">
+            <div class="program-progress" aria-label="项目进度"></div>
+            <p class="program-status-text"></p>
           </div>
         </div>
         <p class="program-description"></p>
