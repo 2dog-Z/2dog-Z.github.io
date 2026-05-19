@@ -76,6 +76,33 @@ const DEFAULT_PROGRAMS = [
     enName: "Loading Content.",
     statusHistory: []
   },
+  {
+    id: createId(),
+    tierId: "reach",
+    shortName: "Loading",
+    schoolId: "mit",
+    cnName: "加载中",
+    enName: "Loading Content.",
+    statusHistory: []
+  },
+  {
+    id: createId(),
+    tierId: "match",
+    shortName: "Loading",
+    schoolId: "mit",
+    cnName: "加载中",
+    enName: "Loading Content.",
+    statusHistory: []
+  },
+  {
+    id: createId(),
+    tierId: "safety",
+    shortName: "Loading",
+    schoolId: "mit",
+    cnName: "加载中",
+    enName: "Loading Content.",
+    statusHistory: []
+  },
 
 ];
 
