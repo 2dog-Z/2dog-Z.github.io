@@ -71,7 +71,7 @@ const DEFAULT_PROGRAMS = [
     id: createId(),
     tierId: "lottery",
     shortName: "Loading",
-    schoolId: "cmu",
+    schoolId: "mit",
     cnName: "加载中",
     enName: "Loading Content.",
     statusHistory: []
