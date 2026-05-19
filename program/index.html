@@ -9,10 +9,10 @@
 <body>
   <div class="page-shell">
     <header class="page-header">
-      <div>
+      <div class="page-title-block">
         <p class="eyebrow">Interactive School List</p>
         <h1>选校清单</h1>
-
+        <button id="unlock-button" class="icon-button unlock-button" type="button" title="登陆" aria-label="登陆按钮">⚙️</button>
       </div>
       <div class="status-panel">
         <span id="save-status" class="save-status hidden"></span>
@@ -66,6 +66,28 @@
           <div class="spacer"></div>
           <button class="action-button secondary" type="button" data-close-modal="true">取消</button>
           <button id="submit-button" class="action-button primary" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="unlock-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-unlock-modal="true"></div>
+    <div class="modal-dialog modal-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="unlock-modal-title">
+      <div class="modal-header">
+        <h2 id="unlock-modal-title">登陆</h2>
+        <button id="unlock-modal-close" class="icon-button subtle" type="button" aria-label="关闭解锁弹窗">×</button>
+      </div>
+      <form id="unlock-form" class="modal-form">
+        <label>
+          <span>输入密码</span>
+          <input id="unlock-password" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <p id="unlock-error" class="modal-error hidden" role="alert"></p>
+        <div class="modal-actions">
+          <div class="spacer"></div>
+          <button class="action-button secondary" type="button" data-close-unlock-modal="true">取消</button>
+          <button class="action-button primary" type="submit">解锁</button>
         </div>
       </form>
     </div>

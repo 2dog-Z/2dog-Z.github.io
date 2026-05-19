@@ -70,30 +70,13 @@ const DEFAULT_PROGRAMS = [
   {
     id: createId(),
     tierId: "lottery",
-    shortName: "AIE-ECE",
+    shortName: "Loading",
     schoolId: "cmu",
-    cnName: "人工智能工程理学硕士（电气与计算机工程方向）",
-    enName: "M.S. in Artificial Intelligence Engineering - ECE",
+    cnName: "加载中",
+    enName: "Loading Content.",
     statusHistory: []
   },
-  {
-    id: createId(),
-    tierId: "lottery",
-    shortName: "MSCS (1-yr)",
-    schoolId: "yale",
-    cnName: "计算机科学理学硕士（一年制）",
-    enName: "MSc in Computer Science (One-Year Program)",
-    statusHistory: []
-  },
-  {
-    id: createId(),
-    tierId: "reach",
-    shortName: "MCS - Chicago",
-    schoolId: "uiuc",
-    cnName: "计算机科学硕士（芝加哥校区）",
-    enName: "Master of Computer Science in Chicago",
-    statusHistory: []
-  }
+
 ];
 
 const GITHUB_TOKEN_PARTS = [
@@ -116,6 +99,7 @@ const GITHUB_SYNC_CONFIG = {
 const STORAGE_KEY = "interactive-school-list-cache-v1";
 const ISSUE_BODY_MARKER_START = "<!-- school-list-state:start -->";
 const ISSUE_BODY_MARKER_END = "<!-- school-list-state:end -->";
+const UNLOCK_SHA256 = "866bb79460b618ef30be0a50632adcd3816a23d3f1e8ba5ca682f2a370ae625c";
 
 // #region debug-point A:reporter
 const DEBUG_REPORT_URL = "http://127.0.0.1:7779/event";
@@ -141,6 +125,7 @@ const elements = {
   board: document.querySelector("#tier-board"),
   tierTemplate: document.querySelector("#tier-template"),
   programTemplate: document.querySelector("#program-template"),
+  unlockButton: document.querySelector("#unlock-button"),
   modal: document.querySelector("#program-modal"),
   modalTitle: document.querySelector("#modal-title"),
   closeModalButtons: document.querySelectorAll("[data-close-modal='true'], #modal-close"),
@@ -154,7 +139,12 @@ const elements = {
   statusSelect: document.querySelector("#program-status"),
   saveStatus: document.querySelector("#save-status"),
   modalLogo: document.querySelector("#modal-school-logo"),
-  modalLogoPlaceholder: document.querySelector("#modal-logo-placeholder")
+  modalLogoPlaceholder: document.querySelector("#modal-logo-placeholder"),
+  unlockModal: document.querySelector("#unlock-modal"),
+  unlockCloseButtons: document.querySelectorAll("[data-close-unlock-modal='true'], #unlock-modal-close"),
+  unlockForm: document.querySelector("#unlock-form"),
+  unlockPasswordInput: document.querySelector("#unlock-password"),
+  unlockError: document.querySelector("#unlock-error")
 };
 
 const schoolMap = new Map(SCHOOL_OPTIONS.map((school) => [school.id, school]));
@@ -168,7 +158,8 @@ const state = {
   saveStatusTimer: null,
   draggedProgramId: null,
   dropHappened: false,
-  syncing: false
+  syncing: false,
+  isUnlocked: false
 };
 
 document.addEventListener("DOMContentLoaded", initialize);
@@ -177,6 +168,7 @@ async function initialize() {
   populateSchoolOptions();
   bindModalEvents();
   bindFormEvents();
+  bindUnlockEvents();
 
   state.programs = normalizePrograms(loadLocalCache());
   renderBoard();
@@ -219,6 +211,10 @@ function bindModalEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements.modal.classList.contains("hidden")) {
       closeModal();
+    }
+
+    if (event.key === "Escape" && !elements.unlockModal.classList.contains("hidden")) {
+      closeUnlockModal();
     }
   });
 }
@@ -291,7 +287,43 @@ function bindFormEvents() {
   });
 }
 
+function bindUnlockEvents() {
+  elements.unlockButton.addEventListener("click", openUnlockModal);
+
+  elements.unlockCloseButtons.forEach((button) => {
+    button.addEventListener("click", closeUnlockModal);
+  });
+
+  elements.unlockForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setUnlockError("");
+
+    const password = elements.unlockPasswordInput.value;
+    if (!password) {
+      setUnlockError("请输入密码。");
+      return;
+    }
+
+    try {
+      const sha256 = await sha256Hex(password);
+      if (sha256 !== UNLOCK_SHA256) {
+        setUnlockError("密码错误。");
+        return;
+      }
+
+      state.isUnlocked = true;
+      updateUnlockButtonState();
+      closeUnlockModal();
+      renderBoard();
+      setSaveStatus("已登陆", "success");
+    } catch (error) {
+      setUnlockError("当前环境不支持密码校验。");
+    }
+  });
+}
+
 function renderBoard() {
+  updateUnlockButtonState();
   elements.board.innerHTML = "";
 
   TIER_DEFINITIONS.forEach((tier) => {
@@ -304,9 +336,14 @@ function renderBoard() {
     title.textContent = tier.label;
     subtitle.textContent = tier.subtitle || "";
     list.dataset.tierId = tier.id;
+    list.dataset.locked = state.isUnlocked ? "false" : "true";
+    tierNode.classList.toggle("is-locked", !state.isUnlocked);
+    addButton.hidden = !state.isUnlocked;
 
-    addButton.addEventListener("click", () => openCreateModal(tier.id));
-    wireTierListDnD(list);
+    if (state.isUnlocked) {
+      addButton.addEventListener("click", () => openCreateModal(tier.id));
+      wireTierListDnD(list);
+    }
 
     const programs = getProgramsByTier(tier.id);
     list.classList.toggle("empty", programs.length === 0);
@@ -314,10 +351,11 @@ function renderBoard() {
     programs.forEach((program) => {
       const cardNode = elements.programTemplate.content.firstElementChild.cloneNode(true);
       const school = getSchoolById(program.schoolId);
-      const currentStatus = getCurrentStatus(program);
 
       cardNode.dataset.programId = program.id;
       cardNode.dataset.tierId = program.tierId;
+      cardNode.draggable = state.isUnlocked;
+      cardNode.classList.toggle("is-locked", !state.isUnlocked);
 
       cardNode.querySelector(".program-title").textContent = `${program.shortName} @ ${school.short} ${school.cn}`;
       cardNode.querySelector(".program-subtitle").textContent = school.en;
@@ -328,9 +366,11 @@ function renderBoard() {
       renderStatusProgress(progressNode, program);
 
       const editButton = cardNode.querySelector(".program-edit-button");
-      editButton.addEventListener("click", () => openEditModal(program.id));
-
-      wireProgramDnD(cardNode);
+      editButton.hidden = !state.isUnlocked;
+      if (state.isUnlocked) {
+        editButton.addEventListener("click", () => openEditModal(program.id));
+        wireProgramDnD(cardNode);
+      }
 
       const logo = cardNode.querySelector(".school-logo");
       const placeholder = cardNode.querySelector(".logo-placeholder");
@@ -485,6 +525,10 @@ function syncProgramsFromDom() {
 }
 
 function openCreateModal(tierId) {
+  if (!state.isUnlocked) {
+    return;
+  }
+
   state.modalMode = "create";
   state.activeProgramId = null;
   state.activeTierId = tierId;
@@ -501,6 +545,10 @@ function openCreateModal(tierId) {
 }
 
 function openEditModal(programId) {
+  if (!state.isUnlocked) {
+    return;
+  }
+
   const program = state.programs.find((item) => item.id === programId);
   if (!program) {
     return;
@@ -551,6 +599,31 @@ function showModal() {
 function closeModal() {
   elements.modal.classList.add("hidden");
   elements.modal.setAttribute("aria-hidden", "true");
+}
+
+function openUnlockModal() {
+  setUnlockError("");
+  elements.unlockForm.reset();
+  elements.unlockModal.classList.remove("hidden");
+  elements.unlockModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => elements.unlockPasswordInput.focus(), 0);
+}
+
+function closeUnlockModal() {
+  elements.unlockModal.classList.add("hidden");
+  elements.unlockModal.setAttribute("aria-hidden", "true");
+  setUnlockError("");
+}
+
+function setUnlockError(message) {
+  elements.unlockError.textContent = message;
+  elements.unlockError.classList.toggle("hidden", !message);
+}
+
+function updateUnlockButtonState() {
+  elements.unlockButton.classList.toggle("is-unlocked", state.isUnlocked);
+  elements.unlockButton.title = state.isUnlocked ? "编辑功能已解锁" : "解锁编辑功能";
+  elements.unlockButton.setAttribute("aria-label", state.isUnlocked ? "编辑功能已解锁" : "解锁编辑功能");
 }
 
 function updateModalSchoolPreview() {
@@ -654,7 +727,6 @@ function getStatusSelectChoices(statusHistory) {
 
 function buildNextStatusHistory(currentHistory, selectedStatus) {
   const history = Array.isArray(currentHistory) ? currentHistory.map((entry) => ({ ...entry })) : [];
-  const currentStatus = history.length ? history[history.length - 1].status : "draft";
   const [targetStatus, action] = String(selectedStatus || "").split(":");
 
   if (action !== "append" || !STATUS_DEFINITIONS[targetStatus]) {
@@ -1059,6 +1131,16 @@ function hideSaveStatus() {
   elements.saveStatus.textContent = "";
   elements.saveStatus.classList.add("hidden");
   elements.saveStatus.classList.remove("is-success", "is-error");
+}
+
+async function sha256Hex(value) {
+  if (!window.crypto?.subtle) {
+    throw new Error("crypto.subtle is unavailable");
+  }
+
+  const encoded = new TextEncoder().encode(value);
+  const digest = await window.crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function createId() {

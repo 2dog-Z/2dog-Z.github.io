@@ -47,6 +47,35 @@ button {
   padding: 32px 24px 48px;
 }
 
+.page-title-block {
+  position: relative;
+  display: inline-block;
+  padding-right: 56px;
+}
+
+.unlock-button {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(12px, -50%);
+  transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+  z-index: 5;
+}
+
+.page-title-block:hover .unlock-button,
+.page-title-block:focus-within .unlock-button,
+.unlock-button.is-unlocked {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+}
+
+.unlock-button.is-unlocked {
+  background: #deefe5;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -159,6 +188,20 @@ h1 {
   transform: translateY(0);
 }
 
+.tier-column.is-locked .tier-add-button,
+.tier-column.is-locked:hover .tier-add-button,
+.tier-column.is-locked:focus-within .tier-add-button {
+  display: none !important;
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.program-card.is-locked:hover .program-edit-button,
+.program-card.is-locked:focus-within .program-edit-button {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
 .tier-list {
   min-height: 180px;
   display: flex;
@@ -176,6 +219,10 @@ h1 {
   color: var(--text-muted);
   text-align: center;
   background: var(--surface-muted);
+}
+
+.tier-list.empty[data-locked="true"]::after {
+  content: "当前为冻结模式，悬停右侧点击⚙️并输入密码后解锁";
 }
 
 .program-card {
@@ -197,12 +244,24 @@ h1 {
   opacity: 0.55;
 }
 
+.program-card.is-locked {
+  cursor: default;
+}
+
+.program-card.is-locked:hover {
+  background: transparent;
+}
+
 .program-content {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding-left: 20px;
   padding-right: 32px;
+}
+
+.program-card.is-locked .program-content {
+  padding-right: 20px;
 }
 
 .program-header {
@@ -361,6 +420,10 @@ h1 {
   box-shadow: 0 30px 60px rgba(8, 15, 25, 0.3);
 }
 
+.modal-dialog--compact {
+  width: min(420px, calc(100vw - 24px));
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -415,6 +478,12 @@ h1 {
 .modal-form textarea {
   resize: vertical;
   min-height: 96px;
+}
+
+.modal-error {
+  margin: -2px 0 0;
+  color: var(--danger-dark);
+  line-height: 1.5;
 }
 
 .school-preview-card {
@@ -497,6 +566,18 @@ h1 {
 @media (max-width: 640px) {
   .page-shell {
     padding: 22px 14px 32px;
+  }
+
+  .unlock-button {
+    top: 50%;
+    right: 0;
+    transform: translate(0, calc(-50% - 6px));
+  }
+
+  .page-title-block:hover .unlock-button,
+  .page-title-block:focus-within .unlock-button,
+  .unlock-button.is-unlocked {
+    transform: translate(0, -50%);
   }
 
   .tier-column,
