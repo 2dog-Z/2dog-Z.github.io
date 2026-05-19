@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>选校清单</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="page-header">
+      <div class="page-title-block">
+        <p class="eyebrow">Interactive School List</p>
+        <h1>选校清单</h1>
+        <p id="program-count" class="page-meta">共 0 个项目</p>
+        <button id="unlock-button" class="icon-button unlock-button" type="button" title="登陆" aria-label="登陆按钮">⚙️</button>
+      </div>
+      <div class="status-panel">
+        <span id="save-status" class="save-status hidden"></span>
+      </div>
+    </header>
+
+    <main id="tier-board" class="tier-board" aria-live="polite"></main>
+  </div>
+
+  <div id="program-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="true"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <h2 id="modal-title">编辑项目</h2>
+        <button id="modal-close" class="icon-button subtle" type="button" aria-label="关闭弹窗">×</button>
+      </div>
+      <form id="program-form" class="modal-form">
+        <label>
+          <span>项目简称</span>
+          <input id="program-short-name" name="shortName" type="text" required maxlength="80">
+        </label>
+
+        <label class="school-select-field">
+          <span>院校名称</span>
+          <div class="school-select-row">
+            <div class="logo-frame select-logo-frame">
+              <div id="modal-logo-placeholder" class="logo-placeholder"></div>
+              <img id="modal-school-logo" alt="" hidden>
+            </div>
+            <select id="program-school" name="schoolId" required></select>
+          </div>
+        </label>
+
+        <label>
+          <span>项目中文名称</span>
+          <input id="program-cn-name" name="cnName" type="text" required maxlength="120">
+        </label>
+
+        <label>
+          <span>项目英文全称</span>
+          <textarea id="program-en-name" name="enName" rows="3" required maxlength="240"></textarea>
+        </label>
+
+        <label>
+          <span>项目状态</span>
+          <select id="program-status" name="status"></select>
+        </label>
+
+        <div class="modal-actions">
+          <button id="delete-button" class="action-button danger hidden" type="button">删除</button>
+          <div class="spacer"></div>
+          <button class="action-button secondary" type="button" data-close-modal="true">取消</button>
+          <button id="submit-button" class="action-button primary" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="unlock-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-unlock-modal="true"></div>
+    <div class="modal-dialog modal-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="unlock-modal-title">
+      <div class="modal-header">
+        <h2 id="unlock-modal-title">登陆</h2>
+        <button id="unlock-modal-close" class="icon-button subtle" type="button" aria-label="关闭解锁弹窗">×</button>
+      </div>
+      <form id="unlock-form" class="modal-form">
+        <label>
+          <span>输入密码</span>
+          <input id="unlock-password" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <p id="unlock-error" class="modal-error hidden" role="alert"></p>
+        <div class="modal-actions">
+          <div class="spacer"></div>
+          <button class="action-button secondary" type="button" data-close-unlock-modal="true">取消</button>
+          <button class="action-button primary" type="submit">解锁</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <template id="tier-template">
+    <section class="tier-column">
+      <div class="tier-header">
+        <div>
+          <h2 class="tier-title"></h2>
+          <p class="tier-subtitle"></p>
+        </div>
+        <button class="icon-button tier-add-button" type="button" title="新建项目">✏️</button>
+      </div>
+      <div class="tier-list"></div>
+    </section>
+  </template>
+
+  <template id="program-template">
+    <article class="program-card" draggable="true">
+      <div class="program-content">
+        <div class="program-header">
+          <div class="logo-frame">
+            <div class="logo-placeholder"></div>
+            <img class="school-logo" alt="" hidden>
+          </div>
+          <div class="program-title-group">
+            <h3 class="program-title"></h3>
+            <p class="program-subtitle"></p>
+          </div>
+          <div class="program-status-side">
+            <div class="program-progress" aria-label="项目进度"></div>
+            <p class="program-status-text"></p>
+          </div>
+        </div>
+        <p class="program-description"></p>
+      </div>
+      <button class="icon-button program-edit-button" type="button" title="编辑项目">✏️</button>
+    </article>
+  </template>
+
+  <script src="./script.js"></script>
+</body>
+</html>
