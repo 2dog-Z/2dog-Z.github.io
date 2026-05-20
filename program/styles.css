@@ -727,6 +727,11 @@ h1 {
     white-space: nowrap;
   }
 
+  .program-subtitle {
+    font-size: clamp(0.68rem, 3vw, 0.9rem);
+    line-height: 1.4;
+  }
+
   .program-school-name,
   .program-subtitle,
   .program-description,
