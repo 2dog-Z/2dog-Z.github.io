@@ -10,9 +10,9 @@
   <div class="page-shell">
     <header class="page-header">
       <div class="page-title-block">
-        <p class="eyebrow">Interactive School List</p>
-        <h1>选校清单</h1>
-        <p id="program-count" class="page-meta">共 0 个项目</p>
+        <p class="eyebrow">Interactive School List Of Chambers Z.</p>
+        <h1>张二狗 Chambers 的选校清单</h1>
+        <p id="program-count" class="page-meta">0 Programs In Total</p>
         <button id="unlock-button" class="icon-button unlock-button" type="button" title="登陆" aria-label="登陆按钮">⚙️</button>
       </div>
       <div class="status-panel">
@@ -21,6 +21,16 @@
     </header>
 
     <main id="tier-board" class="tier-board" aria-live="polite"></main>
+
+    <footer class="page-footer">
+      <p class="subtitle">A pure static front-end page based on HTML, CSS, and JavaScript, with school problems storage and updates managed through GitHub Issues.</p>
+      <a class="github-link" href="https://github.com/2dog-Z" target="_blank" rel="noreferrer" aria-label="打开 Chambers Z 的 GitHub 主页" title="打开 GitHub 主页">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 1.5C6.2 1.5 1.5 6.2 1.5 12.1c0 4.7 3 8.7 7.2 10.1.5.1.7-.2.7-.5v-1.9c-2.9.6-3.5-1.2-3.5-1.2-.5-1.2-1.2-1.5-1.2-1.5-1-.7.1-.7.1-.7 1.1.1 1.8 1.2 1.8 1.2 1 .1.7 1.8 2.8 1.8.3-.7.4-1.2.7-1.5-2.3-.3-4.8-1.2-4.8-5.2 0-1.1.4-2 1.1-2.8-.1-.3-.5-1.3.1-2.8 0 0 .9-.3 2.9 1.1a9.8 9.8 0 0 1 5.3 0c2-1.4 2.9-1.1 2.9-1.1.6 1.5.2 2.5.1 2.8.7.8 1.1 1.7 1.1 2.8 0 4-2.4 4.9-4.8 5.2.4.3.7 1 .7 2.1v3.1c0 .3.2.7.7.5a10.6 10.6 0 0 0 7.2-10.1C22.5 6.2 17.8 1.5 12 1.5Z"></path>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </footer>
   </div>
 
   <div id="program-modal" class="modal hidden" aria-hidden="true">
@@ -76,19 +86,18 @@
     <div class="modal-backdrop" data-close-unlock-modal="true"></div>
     <div class="modal-dialog modal-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="unlock-modal-title">
       <div class="modal-header">
-        <h2 id="unlock-modal-title">登陆</h2>
+        <h2 id="unlock-modal-title">Login</h2>
         <button id="unlock-modal-close" class="icon-button subtle" type="button" aria-label="关闭解锁弹窗">×</button>
       </div>
       <form id="unlock-form" class="modal-form">
         <label>
-          <span>输入密码</span>
           <input id="unlock-password" name="password" type="password" autocomplete="current-password" required>
         </label>
         <p id="unlock-error" class="modal-error hidden" role="alert"></p>
         <div class="modal-actions">
           <div class="spacer"></div>
-          <button class="action-button secondary" type="button" data-close-unlock-modal="true">取消</button>
-          <button class="action-button primary" type="submit">解锁</button>
+          <button class="action-button secondary" type="button" data-close-unlock-modal="true">Cancel</button>
+          <button class="action-button primary" type="submit">Login</button>
         </div>
       </form>
     </div>
@@ -116,15 +125,21 @@
             <img class="school-logo" alt="" hidden>
           </div>
           <div class="program-title-group">
-            <h3 class="program-title"></h3>
+            <h3 class="program-title">
+              <span class="program-short-name"></span>
+              <span class="program-school-name"></span>
+            </h3>
             <p class="program-subtitle"></p>
           </div>
-          <div class="program-status-side">
-            <div class="program-progress" aria-label="项目进度"></div>
-            <p class="program-status-text"></p>
-          </div>
         </div>
-        <p class="program-description"></p>
+        <p class="program-description">
+          <span class="program-cn-name"></span>
+          <span class="program-en-name"></span>
+        </p>
+        <div class="program-status-side">
+          <div class="program-progress" aria-label="项目进度"></div>
+          <p class="program-status-text"></p>
+        </div>
       </div>
       <button class="icon-button program-edit-button" type="button" title="编辑项目">✏️</button>
     </article>

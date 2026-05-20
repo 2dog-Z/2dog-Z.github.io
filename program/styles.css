@@ -86,15 +86,21 @@ button {
 
 .eyebrow {
   margin: 0 0 10px;
-  font-size: 0.85rem;
+  max-width: 100%;
+  font-size: clamp(0.56rem, 2.2vw, 0.85rem);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #6b7c93;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(2rem, 3vw, 3rem);
+  max-width: 100%;
+  font-size: clamp(0.9rem, 4.8vw, 3rem);
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .page-meta {
@@ -109,6 +115,26 @@ h1 {
   margin: 12px 0 0;
   color: var(--text-muted);
   line-height: 1.6;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.github-link:hover {
+  color: var(--primary-dark);
+}
+
+.github-link svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 
 .status-panel {
@@ -142,6 +168,25 @@ h1 {
   display: grid;
   grid-template-columns: 1fr;
   gap: 22px;
+}
+
+.page-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 40px;
+  padding-top: 18px;
+  border-top: 1px solid #e3e7ed;
+}
+
+.page-footer .subtitle {
+  margin: 0;
+}
+
+.page-footer .github-link {
+  margin-top: 0;
+  flex-shrink: 0;
 }
 
 .tier-column {
@@ -260,9 +305,13 @@ h1 {
 }
 
 .program-content {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-areas:
+    "header status"
+    "description status";
+  column-gap: 24px;
+  row-gap: 10px;
   padding-left: 20px;
   padding-right: 32px;
 }
@@ -272,18 +321,23 @@ h1 {
 }
 
 .program-header {
+  grid-area: header;
   display: flex;
-  justify-content: space-between;
+  --program-header-gap: 24px;
   gap: 24px;
   align-items: flex-start;
+  min-width: 0;
 }
 
 .program-title-group {
   min-width: 0;
   flex: 1;
+  display: grid;
+  gap: 4px;
 }
 
 .program-status-side {
+  grid-area: status;
   display: flex;
   flex: 0 0 180px;
   flex-direction: column;
@@ -328,18 +382,33 @@ h1 {
   margin: 0;
   font-size: 1.05rem;
   line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35ch;
+  align-items: baseline;
+}
+
+.program-short-name,
+.program-school-name {
+  min-width: 0;
 }
 
 .program-subtitle {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--text-muted);
   line-height: 1.45;
 }
 
 .program-description {
+  grid-area: description;
   margin: 0;
+  padding-left: calc(var(--logo-size) + var(--program-header-gap));
   color: #314050;
   line-height: 1.6;
+}
+
+.program-en-name::before {
+  content: "，";
 }
 
 .logo-frame {
@@ -404,6 +473,8 @@ h1 {
   position: fixed;
   inset: 0;
   z-index: 20;
+  padding: 24px 12px;
+  overflow-y: auto;
 }
 
 .modal.hidden {
@@ -419,12 +490,15 @@ h1 {
 .modal-dialog {
   position: relative;
   z-index: 1;
-  width: min(680px, calc(100vw - 24px));
-  margin: 56px auto;
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  margin: max(32px, 4vh) auto;
   padding: 24px;
   border-radius: 22px;
   background: var(--surface);
   box-shadow: 0 30px 60px rgba(8, 15, 25, 0.3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-dialog--compact {
@@ -513,6 +587,7 @@ h1 {
   align-items: center;
   gap: 10px;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
 
 .spacer {
@@ -520,6 +595,9 @@ h1 {
 }
 
 .action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-radius: 12px;
   padding: 11px 18px;
@@ -560,6 +638,11 @@ h1 {
     flex-direction: column;
   }
 
+  .page-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .status-panel {
     width: 100%;
   }
@@ -573,6 +656,17 @@ h1 {
 @media (max-width: 640px) {
   .page-shell {
     padding: 22px 14px 32px;
+  }
+
+  .page-title-block {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    padding-right: 52px;
+  }
+
+  .modal {
+    padding: 12px;
   }
 
   .unlock-button {
@@ -592,6 +686,13 @@ h1 {
     padding: 18px;
   }
 
+  .modal-dialog {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    margin: 0 auto;
+    border-radius: 18px;
+  }
+
   .tier-column {
     padding: 8px 0 14px;
   }
@@ -600,19 +701,101 @@ h1 {
     padding: 16px 0 20px;
   }
 
-  .program-header,
-  .school-preview-card {
+  .program-content {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "header"
+      "description"
+      "status";
+    row-gap: 8px;
+  }
+
+  .program-header {
+    --program-header-gap: 12px;
+    gap: 12px;
+  }
+
+  .program-title {
     flex-direction: column;
     align-items: flex-start;
+    gap: 2px;
+    line-height: 1.35;
+  }
+
+  .program-school-name {
+    font-size: clamp(0.72rem, 3.2vw, 0.95rem);
+    white-space: nowrap;
+  }
+
+  .program-school-name,
+  .program-subtitle,
+  .program-description,
+  .program-status-side {
+    min-width: 0;
+  }
+
+  .program-description {
+    padding-left: calc(var(--logo-size) + var(--program-header-gap));
+  }
+
+  .program-description > span {
+    display: block;
+  }
+
+  .program-en-name::before {
+    content: "";
+  }
+
+  .program-header .logo-frame,
+  .program-description,
+  .program-status-side {
+    align-self: start;
   }
 
   .program-status-side {
     width: 100%;
     flex-basis: auto;
+    padding-left: calc(var(--logo-size) + var(--program-header-gap));
+  }
+
+  .school-preview-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .program-status-side,
+  .school-preview-card {
+    width: 100%;
   }
 
   .school-select-row {
     grid-template-columns: 1fr;
     justify-items: start;
+  }
+
+  .modal-actions .spacer {
+    display: none;
+  }
+
+  .modal-actions > .action-button,
+  .modal-actions > #delete-button {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 420px) {
+  .modal-header {
+    align-items: flex-start;
+  }
+
+  .modal-header .icon-button {
+    flex-shrink: 0;
+  }
+
+  .modal-actions > .action-button,
+  .modal-actions > #delete-button {
+    flex-basis: 100%;
+    min-width: 0;
   }
 }

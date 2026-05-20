@@ -56,12 +56,12 @@ const SCHOOL_OPTIONS = [
 ];
 
 const STATUS_DEFINITIONS = {
-  draft: { id: "draft", label: "未投递", shortLabel: "未投递", colorClass: "is-gray" },
-  applied: { id: "applied", label: "已投递✉️", shortLabel: "已投递✉️", colorClass: "is-green" },
-  interview: { id: "interview", label: "面试👨🏻‍💼", shortLabel: "面试👨🏻‍💼", colorClass: "is-green" },
-  waitlist: { id: "waitlist", label: "WL⌛️", shortLabel: "WL⌛️", colorClass: "is-yellow" },
-  admitted: { id: "admitted", label: "Admitted✅", shortLabel: "Admitted✅", colorClass: "is-green" },
-  reject: { id: "reject", label: "Reject❌", shortLabel: "Reject❌", colorClass: "is-red" }
+  draft: { id: "draft", label: "Draft", shortLabel: "Draft", colorClass: "is-gray" },
+  applied: { id: "applied", label: "Applied ✉️", shortLabel: "Applied ✉️", colorClass: "is-green" },
+  interview: { id: "interview", label: "Interview 👨🏻‍💼", shortLabel: "Interview 👨🏻‍💼", colorClass: "is-green" },
+  waitlist: { id: "waitlist", label: "Waitlist ⌛️", shortLabel: "Waitlist ⌛️", colorClass: "is-yellow" },
+  admitted: { id: "admitted", label: "Admitted ✅", shortLabel: "Admitted ✅", colorClass: "is-green" },
+  reject: { id: "reject", label: "Rejected ❌", shortLabel: "Rejected ❌", colorClass: "is-red" }
 };
 
 const TERMINAL_STATUSES = new Set(["admitted", "reject"]);
@@ -71,34 +71,7 @@ const DEFAULT_PROGRAMS = [
     id: createId(),
     tierId: "lottery",
     shortName: "Loading",
-    schoolId: "mit",
-    cnName: "加载中",
-    enName: "Loading Content.",
-    statusHistory: []
-  },
-  {
-    id: createId(),
-    tierId: "reach",
-    shortName: "Loading",
-    schoolId: "mit",
-    cnName: "加载中",
-    enName: "Loading Content.",
-    statusHistory: []
-  },
-  {
-    id: createId(),
-    tierId: "match",
-    shortName: "Loading",
-    schoolId: "mit",
-    cnName: "加载中",
-    enName: "Loading Content.",
-    statusHistory: []
-  },
-  {
-    id: createId(),
-    tierId: "safety",
-    shortName: "Loading",
-    schoolId: "mit",
+    schoolId: "cmu",
     cnName: "加载中",
     enName: "Loading Content.",
     statusHistory: []
@@ -386,9 +359,11 @@ function renderBoard() {
       cardNode.draggable = state.isUnlocked;
       cardNode.classList.toggle("is-locked", !state.isUnlocked);
 
-      cardNode.querySelector(".program-title").textContent = `${program.shortName} @ ${school.short} ${school.cn}`;
+      cardNode.querySelector(".program-short-name").textContent = program.shortName;
+      cardNode.querySelector(".program-school-name").textContent = `@ ${school.short} ${school.cn}`;
       cardNode.querySelector(".program-subtitle").textContent = school.en;
-      cardNode.querySelector(".program-description").textContent = `${program.cnName}，${program.enName}`;
+      cardNode.querySelector(".program-cn-name").textContent = program.cnName;
+      cardNode.querySelector(".program-en-name").textContent = program.enName;
       cardNode.querySelector(".program-status-text").textContent = getCurrentStatusLabel(program);
 
       const progressNode = cardNode.querySelector(".program-progress");
@@ -415,7 +390,7 @@ function renderBoard() {
 
 function updateProgramCount() {
   const count = Array.isArray(state.programs) ? state.programs.length : 0;
-  elements.programCount.textContent = `共 ${count} 个项目`;
+  elements.programCount.textContent = `${count} Programs In Total`;
 }
 
 function renderStatusProgress(progressNode, program) {
@@ -723,7 +698,7 @@ function getStatusSelectChoices(statusHistory) {
   if (currentStatus === "applied") {
     return [
       { value: "applied:stay", label: STATUS_DEFINITIONS.applied.label },
-      { value: "interview:append", label: "第1次面试👨🏻‍💼" },
+      { value: "interview:append", label: "Interview Round 1 👨🏻‍💼" },
       { value: "admitted:append", label: STATUS_DEFINITIONS.admitted.label },
       { value: "waitlist:append", label: STATUS_DEFINITIONS.waitlist.label },
       { value: "reject:append", label: STATUS_DEFINITIONS.reject.label }
@@ -732,8 +707,8 @@ function getStatusSelectChoices(statusHistory) {
 
   if (currentStatus === "interview") {
     return [
-      { value: "interview:stay", label: `第${currentInterviewRound}次面试👨🏻‍💼` },
-      { value: "interview:append", label: `第${currentInterviewRound + 1}次面试👨🏻‍💼` },
+      { value: "interview:stay", label: `Interview Round ${currentInterviewRound} 👨🏻‍💼` },
+      { value: "interview:append", label: `Interview Round ${currentInterviewRound + 1} 👨🏻‍💼` },
       { value: "admitted:append", label: STATUS_DEFINITIONS.admitted.label },
       { value: "waitlist:append", label: STATUS_DEFINITIONS.waitlist.label },
       { value: "reject:append", label: STATUS_DEFINITIONS.reject.label }
@@ -807,9 +782,9 @@ function getProgressSegments(program) {
 
 function formatStatusTime(changedAt) {
   try {
-    return `更改时间：${new Date(changedAt).toLocaleString("zh-CN", { hour12: false })}`;
+    return `Updated: ${new Date(changedAt).toLocaleString("en-US", { hour12: false })}`;
   } catch (error) {
-    return "更改时间：未知";
+    return "Updated: Unknown";
   }
 }
 
@@ -825,7 +800,7 @@ function getInterviewRoundFromHistory(history, targetIndex = history.length - 1)
 
 function getHistoryEntryLabel(entry, history, index) {
   if (entry.status === "interview") {
-    return `第${getInterviewRoundFromHistory(history, index)}次面试👨🏻‍💼`;
+    return `Interview Round ${getInterviewRoundFromHistory(history, index)} 👨🏻‍💼`;
   }
 
   return STATUS_DEFINITIONS[entry.status]?.label || "";
