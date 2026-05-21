@@ -24,7 +24,7 @@ const SCHOOL_OPTIONS = [
   { id: "northwestern", short: "Northwestern", cn: "西北大学", en: "Northwestern University", domain: "www.northwestern.edu" },
   { id: "columbia", short: "Columbia", cn: "哥伦比亚大学", en: "Columbia University", domain: "www.columbia.edu" },
   { id: "cornell", short: "Cornell", cn: "康奈尔大学", en: "Cornell University", domain: "www.cornell.edu" },
-  { id: "cornelltech", short: "Cornell Tech", cn: "康奈尔大学理工校区", en: "Cornell University Tech Campus", domain: "www.cornell.edu" },
+  { id: "cornelltech", short: "Cornell Tech", cn: "康奈尔大学理工校区", en: "Cornell University Tech Campus", domain: "tech.cornell.edu" },
   { id: "upenn", short: "UPenn", cn: "宾夕法尼亚大学", en: "University of Pennsylvania", domain: "www.upenn.edu" },
   { id: "chicago", short: "UChicago", cn: "芝加哥大学", en: "University of Chicago", domain: "www.uchicago.edu" },
   { id: "berkeley", short: "UC Berkeley", cn: "加州大学伯克利分校", en: "University of California, Berkeley", domain: "www.berkeley.edu" },
@@ -71,7 +71,34 @@ const DEFAULT_PROGRAMS = [
     id: createId(),
     tierId: "lottery",
     shortName: "Loading",
-    schoolId: "cmu",
+    schoolId: "mit",
+    cnName: "加载中",
+    enName: "Loading Content.",
+    statusHistory: []
+  },
+  {
+    id: createId(),
+    tierId: "reach",
+    shortName: "Loading",
+    schoolId: "mit",
+    cnName: "加载中",
+    enName: "Loading Content.",
+    statusHistory: []
+  },
+  {
+    id: createId(),
+    tierId: "match",
+    shortName: "Loading",
+    schoolId: "mit",
+    cnName: "加载中",
+    enName: "Loading Content.",
+    statusHistory: []
+  },
+  {
+    id: createId(),
+    tierId: "safety",
+    shortName: "Loading",
+    schoolId: "mit",
     cnName: "加载中",
     enName: "Loading Content.",
     statusHistory: []
@@ -79,27 +106,10 @@ const DEFAULT_PROGRAMS = [
 
 ];
 
-const GITHUB_TOKEN_PARTS = [
-  "github",
-  "_pat_",
-  "11BNK7WAQ0zpIeN5TUVWTK_",
-  "xbB38v6aiqHgIuxB4p6i6YTapOs1h1MG",
-  "NQJ1tgTMWgXRDPD6LHHYYW7jayY"
-];
-
-const GITHUB_SYNC_CONFIG = {
-  enabled: true,
-  owner: "2dog-Z",
-  repo: "School_Programs",
-  token: GITHUB_TOKEN_PARTS.join(""),
-  issueTitle: "school-list-state",
-  issueLabel: "school-list"
-};
+const WORKER_URL = "https://schoolprogram.twodogz.workers.dev"; // 替换为你的 Cloudflare Worker 网址
 
 const STORAGE_KEY = "interactive-school-list-cache-v1";
-const ISSUE_BODY_MARKER_START = "<!-- school-list-state:start -->";
-const ISSUE_BODY_MARKER_END = "<!-- school-list-state:end -->";
-const UNLOCK_SHA256 = "866bb79460b618ef30be0a50632adcd3816a23d3f1e8ba5ca682f2a370ae625c";
+
 
 // #region debug-point A:reporter
 const DEBUG_REPORT_URL = "http://127.0.0.1:7779/event";
@@ -160,7 +170,8 @@ const state = {
   draggedProgramId: null,
   dropHappened: false,
   syncing: false,
-  isUnlocked: false
+  isUnlocked: false,
+  authToken: null
 };
 
 document.addEventListener("DOMContentLoaded", initialize);
@@ -307,18 +318,28 @@ function bindUnlockEvents() {
 
     try {
       const sha256 = await sha256Hex(password);
-      if (sha256 !== UNLOCK_SHA256) {
+      
+      const response = await fetch(`${WORKER_URL}/api/auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passwordSha256: sha256 })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
         setUnlockError("密码错误。");
         return;
       }
 
+      state.authToken = sha256;
       state.isUnlocked = true;
       updateUnlockButtonState();
       closeUnlockModal();
       renderBoard();
       setSaveStatus("已登陆", "success");
     } catch (error) {
-      setUnlockError("当前环境不支持密码校验。");
+      setUnlockError("登陆验证请求失败。");
     }
   });
 }
@@ -936,178 +957,56 @@ function saveLocalCache(programs) {
 
 async function loadFromGithubIssues() {
   try {
-    const issue = await findStateIssue();
-    if (!issue || !issue.body) {
-      // #region debug-point D:load-miss
-      reportDebugEvent("D", "script.js:loadFromGithubIssues", "no issue or issue body found during load", {
-        foundIssue: Boolean(issue),
-        hasBody: Boolean(issue?.body)
+    const response = await fetch(`${WORKER_URL}/api/data`);
+    if (!response.ok) {
+      reportDebugEvent("D", "script.js:loadFromGithubIssues", "worker fetch error", {
+        status: response.status
       });
-      // #endregion
       return null;
     }
-
-    const parsed = parseIssueBody(issue.body);
-    // #region debug-point D:load-parse
-    reportDebugEvent("D", "script.js:loadFromGithubIssues", "issue body parsed during load", {
-      foundIssue: true,
-      parsedCount: Array.isArray(parsed) ? parsed.length : null
-    });
-    // #endregion
-    return Array.isArray(parsed) && parsed.length ? normalizePrograms(parsed) : null;
+    const result = await response.json();
+    if (!result.data) {
+      reportDebugEvent("D", "script.js:loadFromGithubIssues", "no data found", {});
+      return null;
+    }
+    return Array.isArray(result.data) && result.data.length ? normalizePrograms(result.data) : null;
   } catch (error) {
-    // #region debug-point D:load-error
     reportDebugEvent("D", "script.js:loadFromGithubIssues", "loadFromGithubIssues threw", {
       error: String(error)
     });
-    // #endregion
-    console.error("读取 GitHub Issues 失败:", error);
+    console.error("读取数据失败:", error);
     return null;
   }
 }
 
 async function saveToGithubIssues(programs) {
   try {
-    const issue = await findStateIssue();
-    const body = buildIssueBody(programs);
-
-    if (issue) {
-      const response = await fetch(
-        `https://api.github.com/repos/${GITHUB_SYNC_CONFIG.owner}/${GITHUB_SYNC_CONFIG.repo}/issues/${issue.number}`,
-        {
-          method: "PATCH",
-          headers: getGithubHeaders(),
-          body: JSON.stringify({ body })
-        }
-      );
-
-      // #region debug-point C:patch-response
-      reportDebugEvent("C", "script.js:saveToGithubIssues", "patch issue response received", {
-        issueNumber: issue.number,
-        status: response.status,
-        ok: response.ok
-      });
-      // #endregion
-      return response.ok;
-    }
-
-    const createResponse = await fetch(
-      `https://api.github.com/repos/${GITHUB_SYNC_CONFIG.owner}/${GITHUB_SYNC_CONFIG.repo}/issues`,
-      {
-        method: "POST",
-        headers: getGithubHeaders(),
-        body: JSON.stringify({
-          title: GITHUB_SYNC_CONFIG.issueTitle,
-          body,
-          labels: GITHUB_SYNC_CONFIG.issueLabel ? [GITHUB_SYNC_CONFIG.issueLabel] : []
-        })
-      }
-    );
-
-    // #region debug-point C:create-response
-    reportDebugEvent("C", "script.js:saveToGithubIssues", "create issue response received", {
-      status: createResponse.status,
-      ok: createResponse.ok
+    const response = await fetch(`${WORKER_URL}/api/data`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${state.authToken}`
+      },
+      body: JSON.stringify({ programs })
     });
-    // #endregion
-    return createResponse.ok;
+    
+    reportDebugEvent("C", "script.js:saveToGithubIssues", "save response received", {
+      status: response.status,
+      ok: response.ok
+    });
+    
+    return response.ok;
   } catch (error) {
-    // #region debug-point C:save-error
     reportDebugEvent("C", "script.js:saveToGithubIssues", "saveToGithubIssues threw", {
       error: String(error)
     });
-    // #endregion
-    console.error("保存到 GitHub Issues 失败:", error);
+    console.error("保存数据失败:", error);
     return false;
   }
 }
 
-async function findStateIssue() {
-  const searchParams = new URLSearchParams({
-    state: "all",
-    per_page: "100"
-  });
-
-  if (GITHUB_SYNC_CONFIG.issueLabel) {
-    searchParams.set("labels", GITHUB_SYNC_CONFIG.issueLabel);
-  }
-
-  const response = await fetch(
-    `https://api.github.com/repos/${GITHUB_SYNC_CONFIG.owner}/${GITHUB_SYNC_CONFIG.repo}/issues?${searchParams.toString()}`,
-    {
-      headers: getGithubHeaders()
-    }
-  );
-
-  // #region debug-point D:find-issue-response
-  reportDebugEvent("D", "script.js:findStateIssue", "findStateIssue response received", {
-    status: response.status,
-    ok: response.ok
-  });
-  // #endregion
-
-  if (!response.ok) {
-    throw new Error(`GitHub API ${response.status}`);
-  }
-
-  const issues = await response.json();
-  const matchedIssue = issues.find((issue) => issue.title === GITHUB_SYNC_CONFIG.issueTitle) || null;
-
-  // #region debug-point D:find-issue-result
-  reportDebugEvent("D", "script.js:findStateIssue", "findStateIssue completed", {
-    issueCount: Array.isArray(issues) ? issues.length : null,
-    matchedIssueNumber: matchedIssue?.number ?? null
-  });
-  // #endregion
-
-  return matchedIssue;
-}
-
-function buildIssueBody(programs) {
-  return [
-    "Interactive school list state.",
-    "",
-    ISSUE_BODY_MARKER_START,
-    JSON.stringify(normalizePrograms(programs), null, 2),
-    ISSUE_BODY_MARKER_END
-  ].join("\n");
-}
-
-function parseIssueBody(body) {
-  const startIndex = body.indexOf(ISSUE_BODY_MARKER_START);
-  const endIndex = body.indexOf(ISSUE_BODY_MARKER_END);
-
-  if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
-    return null;
-  }
-
-  const jsonText = body
-    .slice(startIndex + ISSUE_BODY_MARKER_START.length, endIndex)
-    .trim();
-
-  return JSON.parse(jsonText);
-}
-
-function getGithubHeaders() {
-  const headers = {
-    Accept: "application/vnd.github+json",
-    "Content-Type": "application/json"
-  };
-
-  if (GITHUB_SYNC_CONFIG.token) {
-    headers.Authorization = `Bearer ${GITHUB_SYNC_CONFIG.token}`;
-  }
-
-  return headers;
-}
-
 function isGithubConfigured() {
-  return Boolean(
-    GITHUB_SYNC_CONFIG.enabled &&
-      GITHUB_SYNC_CONFIG.owner &&
-      GITHUB_SYNC_CONFIG.repo &&
-      GITHUB_SYNC_CONFIG.token
-  );
+  return Boolean(WORKER_URL && WORKER_URL.startsWith("http"));
 }
 
 function clearTierDropState() {
