@@ -6,53 +6,53 @@ const TIER_DEFINITIONS = [
 ];
 
 const SCHOOL_OPTIONS = [
-  { id: "princeton", short: "Princeton", cn: "普林斯顿大学", en: "Princeton University", domain: "www.princeton.edu" },
-  { id: "mit", short: "MIT", cn: "麻省理工学院", en: "Massachusetts Institute of Technology", domain: "www.mit.edu" },
-  { id: "harvard", short: "Harvard", cn: "哈佛大学", en: "Harvard University", domain: "www.harvard.edu" },
-  { id: "stanford", short: "Stanford", cn: "斯坦福大学", en: "Stanford University", domain: "www.stanford.edu" },
-  { id: "oxford", short: "Oxford", cn: "牛津大学", en: "University of Oxford", domain: "www.ox.ac.uk" },
-  { id: "cambridge", short: "Cambridge", cn: "剑桥大学", en: "University of Cambridge", domain: "www.cam.ac.uk" },
-  { id: "yale", short: "Yale", cn: "耶鲁大学", en: "Yale University", domain: "www.yale.edu" },
-  { id: "imperial", short: "Imperial", cn: "帝国理工学院", en: "Imperial College London", domain: "www.imperial.ac.uk" },
-  { id: "caltech", short: "Caltech", cn: "加州理工学院", en: "California Institute of Technology", domain: "www.caltech.edu" },
-  { id: "duke", short: "Duke", cn: "杜克大学", en: "Duke University", domain: "duke.edu" },
-  { id: "brown", short: "Brown", cn: "布朗大学", en: "Brown University", domain: "www.brown.edu" },
-  { id: "eth", short: "ETH Zurich", cn: "苏黎世联邦理工学院", en: "ETH Zurich", domain: "ethz.ch" },
-  { id: "nus", short: "NUS", cn: "新加坡国立大学", en: "National University of Singapore", domain: "www.nus.edu.sg" },
-  { id: "ucl", short: "UCL", cn: "伦敦大学学院", en: "University College London", domain: "www.ucl.ac.uk" },
-  { id: "jhu", short: "JHU", cn: "约翰斯霍普金斯大学", en: "Johns Hopkins University", domain: "www.jhu.edu" },
-  { id: "northwestern", short: "Northwestern", cn: "西北大学", en: "Northwestern University", domain: "www.northwestern.edu" },
-  { id: "columbia", short: "Columbia", cn: "哥伦比亚大学", en: "Columbia University", domain: "www.columbia.edu" },
-  { id: "cornell", short: "Cornell", cn: "康奈尔大学", en: "Cornell University", domain: "www.cornell.edu" },
-  { id: "cornelltech", short: "Cornell Tech", cn: "康奈尔大学理工校区", en: "Cornell University Tech Campus", domain: "tech.cornell.edu" },
-  { id: "upenn", short: "UPenn", cn: "宾夕法尼亚大学", en: "University of Pennsylvania", domain: "www.upenn.edu" },
-  { id: "chicago", short: "UChicago", cn: "芝加哥大学", en: "University of Chicago", domain: "www.uchicago.edu" },
-  { id: "berkeley", short: "UC Berkeley", cn: "加州大学伯克利分校", en: "University of California, Berkeley", domain: "www.berkeley.edu" },
-  { id: "ntu", short: "NTU", cn: "南洋理工大学", en: "Nanyang Technological University, Singapore", domain: "www.ntu.edu.sg" },
-  { id: "epfl", short: "EPFL", cn: "洛桑联邦理工学院", en: "Ecole Polytechnique Federale de Lausanne", domain: "www.epfl.ch" },
-  { id: "toronto", short: "Toronto", cn: "多伦多大学", en: "University of Toronto", domain: "www.utoronto.ca" },
-  { id: "ucla", short: "UCLA", cn: "加州大学洛杉矶分校", en: "University of California, Los Angeles", domain: "www.ucla.edu" },
-  { id: "rice", short: "Rice", cn: "莱斯大学", en: "Rice University", domain: "www.rice.edu" },
-  { id: "dartmouth", short: "Dartmouth", cn: "达特茅斯学院", en: "Dartmouth College", domain: "home.dartmouth.edu" },
-  { id: "michigan", short: "UMich", cn: "密歇根大学安娜堡分校", en: "University of Michigan, Ann Arbor", domain: "umich.edu" },
-  { id: "cmu", short: "CMU", cn: "卡内基梅隆大学", en: "Carnegie Mellon University", domain: "www.cmu.edu" },
-  { id: "ucsd", short: "UCSD", cn: "加州大学圣地亚哥分校", en: "University of California, San Diego", domain: "ucsd.edu" },
-  { id: "usc", short: "USC", cn: "南加州大学", en: "University of Southern California", domain: "www.usc.edu" },
-  { id: "utexas", short: "UT Austin", cn: "得克萨斯大学奥斯汀分校", en: "The University of Texas at Austin", domain: "www.utexas.edu" },
-  { id: "gatech", short: "Georgia Tech", cn: "佐治亚理工学院", en: "Georgia Institute of Technology", domain: "www.gatech.edu" },
-  { id: "uiuc", short: "UIUC", cn: "伊利诺伊大学香槟分校", en: "University of Illinois Urbana-Champaign", domain: "illinois.edu" },
-  { id: "tum", short: "TUM", cn: "慕尼黑工业大学", en: "Technical University of Munich", domain: "www.tum.de" },
-  { id: "hkust", short: "HKUST", cn: "香港科技大学", en: "Hong Kong University of Science and Technology", domain: "hkust.edu.hk" },
-  { id: "hku", short: "HKU", cn: "香港大学", en: "The University of Hong Kong", domain: "www.hku.hk" },
-  { id: "edinburgh", short: "Edinburgh", cn: "爱丁堡大学", en: "University of Edinburgh", domain: "www.ed.ac.uk" },
-  { id: "tudelft", short: "TU Delft", cn: "代尔夫特理工大学", en: "Delft University of Technology", domain: "www.tudelft.nl" },
-  { id: "waterloo", short: "Waterloo", cn: "滑铁卢大学", en: "University of Waterloo", domain: "uwaterloo.ca" },
-  { id: "bu", short: "Boston U", cn: "波士顿大学", en: "Boston University", domain: "www.bu.edu" },
-  { id: "wisc", short: "UW-Madison", cn: "威斯康星大学麦迪逊分校", en: "University of Wisconsin-Madison", domain: "www.wisc.edu" },
-  { id: "uw", short: "UW", cn: "华盛顿大学西雅图分校", en: "University of Washington", domain: "www.washington.edu" },
-  { id: "nyu", short: "NYU", cn: "纽约大学", en: "New York University", domain: "www.nyu.edu" },
-  { id: "tamu", short: "Texas A&M", cn: "德州农工大学", en: "Texas A&M University", domain: "www.tamu.edu" },
-  { id: "neu", short: "Northeastern", cn: "东北大学", en: "Northeastern University", domain: "www.northeastern.edu" }
+  { id: "princeton", short: "Princeton", cn: "普林斯顿大学", en: "Princeton University", domain: "www.princeton.edu", qs: 22, usNews: 16, cs: 29 },
+  { id: "mit", short: "MIT", cn: "麻省理工学院", en: "Massachusetts Institute of Technology", domain: "www.mit.edu", qs: 1, usNews: 2, cs: 9 },
+  { id: "harvard", short: "Harvard", cn: "哈佛大学", en: "Harvard University", domain: "www.harvard.edu", qs: 4, usNews: 1, cs: 61 },
+  { id: "stanford", short: "Stanford", cn: "斯坦福大学", en: "Stanford University", domain: "www.stanford.edu", qs: 6, usNews: 3, cs: 17 },
+  { id: "oxford", short: "Oxford", cn: "牛津大学", en: "University of Oxford", domain: "www.ox.ac.uk", qs: 3, usNews: 4, cs: 91 },
+  { id: "cambridge", short: "Cambridge", cn: "剑桥大学", en: "University of Cambridge", domain: "www.cam.ac.uk", qs: 5, usNews: 5, cs: 72 },
+  { id: "yale", short: "Yale", cn: "耶鲁大学", en: "Yale University", domain: "www.yale.edu", qs: 23, usNews: 9, cs: 65 },
+  { id: "imperial", short: "Imperial", cn: "帝国理工学院", en: "Imperial College London", domain: "www.imperial.ac.uk", qs: 2, usNews: 11, cs: 81 },
+  { id: "caltech", short: "Caltech", cn: "加州理工学院", en: "California Institute of Technology", domain: "www.caltech.edu", qs: 10, usNews: 23, cs: 206 },
+  { id: "duke", short: "Duke", cn: "杜克大学", en: "Duke University", domain: "duke.edu", qs: 61, usNews: 27, cs: 51 },
+  { id: "brown", short: "Brown", cn: "布朗大学", en: "Brown University", domain: "www.brown.edu", qs: 79, usNews: 150, cs: 87 },
+  { id: "eth", short: "ETH Zurich", cn: "苏黎世联邦理工学院", en: "ETH Zurich", domain: "ethz.ch", qs: 7, usNews: 35, cs: 8 },
+  { id: "nus", short: "NUS", cn: "新加坡国立大学", en: "National University of Singapore", domain: "www.nus.edu.sg", qs: 8, usNews: 20, cs: 18 },
+  { id: "ucl", short: "UCL", cn: "伦敦大学学院", en: "University College London", domain: "www.ucl.ac.uk", qs: 9, usNews: 7, cs: 81 },
+  { id: "jhu", short: "JHU", cn: "约翰斯霍普金斯大学", en: "Johns Hopkins University", domain: "www.jhu.edu", qs: 32, usNews: 14, cs: 65 },
+  { id: "northwestern", short: "Northwestern", cn: "西北大学", en: "Northwestern University", domain: "www.northwestern.edu", qs: 50, usNews: 24, cs: 45 },
+  { id: "columbia", short: "Columbia", cn: "哥伦比亚大学", en: "Columbia University", domain: "www.columbia.edu", qs: 34, usNews: 10, cs: 36 },
+  { id: "cornell", short: "Cornell", cn: "康奈尔大学", en: "Cornell University", domain: "www.cornell.edu", qs: 16, usNews: 16, cs: 15 },
+  { id: "cornelltech", short: "Cornell Tech", cn: "康奈尔大学理工校区", en: "Cornell University Tech Campus", domain: "tech.cornell.edu", qs: 16, usNews: 16, cs: 15 },
+  { id: "upenn", short: "UPenn", cn: "宾夕法尼亚大学", en: "University of Pennsylvania", domain: "www.upenn.edu", qs: 11, usNews: 15, cs: 31 },
+  { id: "chicago", short: "UChicago", cn: "芝加哥大学", en: "University of Chicago", domain: "www.uchicago.edu", qs: 21, usNews: 26, cs: 45 },
+  { id: "berkeley", short: "UC Berkeley", cn: "加州大学伯克利分校", en: "University of California, Berkeley", domain: "www.berkeley.edu", qs: 12, usNews: 6, cs: 13 },
+  { id: "ntu", short: "NTU", cn: "南洋理工大学", en: "Nanyang Technological University, Singapore", domain: "www.ntu.edu.sg", qs: 15, usNews: 28, cs: 19 },
+  { id: "epfl", short: "EPFL", cn: "洛桑联邦理工学院", en: "Ecole Polytechnique Federale de Lausanne", domain: "www.epfl.ch", qs: 26, usNews: 86, cs: 31 },
+  { id: "toronto", short: "Toronto", cn: "多伦多大学", en: "University of Toronto", domain: "www.utoronto.ca", qs: 25, usNews: 16, cs: 21 },
+  { id: "ucla", short: "UCLA", cn: "加州大学洛杉矶分校", en: "University of California, Los Angeles", domain: "www.ucla.edu", qs: 42, usNews: 13, cs: 37 },
+  { id: "rice", short: "Rice", cn: "莱斯大学", en: "Rice University", domain: "www.rice.edu", qs: 141, usNews: 219, cs: 72 },
+  { id: "dartmouth", short: "Dartmouth", cn: "达特茅斯学院", en: "Dartmouth College", domain: "home.dartmouth.edu", qs: 243, usNews: 326, cs: 156 },
+  { id: "michigan", short: "UMich", cn: "密歇根大学安娜堡分校", en: "University of Michigan, Ann Arbor", domain: "umich.edu", qs: 44, usNews: 21, cs: 10 },
+  { id: "cmu", short: "CMU", cn: "卡内基梅隆大学", en: "Carnegie Mellon University", domain: "www.cmu.edu", qs: 58, usNews: 126, cs: 1 },
+  { id: "ucsd", short: "UCSD", cn: "加州大学圣地亚哥分校", en: "University of California, San Diego", domain: "ucsd.edu", qs: 72, usNews: 21, cs: 4 },
+  { id: "usc", short: "USC", cn: "南加州大学", en: "University of Southern California", domain: "www.usc.edu", qs: 125, usNews: 77, cs: 39 },
+  { id: "utexas", short: "UT Austin", cn: "得克萨斯大学奥斯汀分校", en: "The University of Texas at Austin", domain: "www.utexas.edu", qs: 66, usNews: 65, cs: 24 },
+  { id: "gatech", short: "Georgia Tech", cn: "佐治亚理工学院", en: "Georgia Institute of Technology", domain: "www.gatech.edu", qs: 114, usNews: 79, cs: 6 },
+  { id: "uiuc", short: "UIUC", cn: "伊利诺伊大学香槟分校", en: "University of Illinois Urbana-Champaign", domain: "illinois.edu", qs: 69, usNews: 109, cs: 3 },
+  { id: "tum", short: "TUM", cn: "慕尼黑工业大学", en: "Technical University of Munich", domain: "www.tum.de", qs: 28, usNews: 79, cs: 41 },
+  { id: "hkust", short: "HKUST", cn: "香港科技大学", en: "Hong Kong University of Science and Technology", domain: "hkust.edu.hk", qs: 47, usNews: 101, cs: 22 },
+  { id: "hku", short: "HKU", cn: "香港大学", en: "The University of Hong Kong", domain: "www.hku.hk", qs: 17, usNews: 44, cs: 65 },
+  { id: "edinburgh", short: "Edinburgh", cn: "爱丁堡大学", en: "University of Edinburgh", domain: "www.ed.ac.uk", qs: 27, usNews: 39, cs: 37 },
+  { id: "tudelft", short: "TU Delft", cn: "代尔夫特理工大学", en: "Delft University of Technology", domain: "www.tudelft.nl", qs: 49, usNews: 191, cs: 65 },
+  { id: "waterloo", short: "Waterloo", cn: "滑铁卢大学", en: "University of Waterloo", domain: "uwaterloo.ca", qs: 115, usNews: 197, cs: 28 },
+  { id: "bu", short: "Boston U", cn: "波士顿大学", en: "Boston University", domain: "www.bu.edu", qs: 108, usNews: 86, cs: 58 },
+  { id: "wisc", short: "UW-Madison", cn: "威斯康星大学麦迪逊分校", en: "University of Wisconsin-Madison", domain: "www.wisc.edu", qs: 116, usNews: 72, cs: 27 },
+  { id: "uw", short: "UW", cn: "华盛顿大学西雅图分校", en: "University of Washington", domain: "www.washington.edu", qs: 76, usNews: 8, cs: 11 },
+  { id: "nyu", short: "NYU", cn: "纽约大学", en: "New York University", domain: "www.nyu.edu", qs: 43, usNews: 32, cs: 24 },
+  { id: "tamu", short: "Texas A&M", cn: "德州农工大学", en: "Texas A&M University", domain: "www.tamu.edu", qs: 154, usNews: 187, cs: 58 },
+  { id: "neu", short: "Northeastern", cn: "东北大学", en: "Northeastern University", domain: "www.northeastern.edu", qs: 396, usNews: 220, cs: 16 }
 ];
 
 const STATUS_DEFINITIONS = {
@@ -386,6 +386,37 @@ function renderBoard() {
       cardNode.querySelector(".program-cn-name").textContent = program.cnName;
       cardNode.querySelector(".program-en-name").textContent = program.enName;
       cardNode.querySelector(".program-status-text").textContent = getCurrentStatusLabel(program);
+
+      const rankingsContainer = cardNode.querySelector(".program-rankings");
+      const qsNode = cardNode.querySelector(".qs-ranking");
+      const usnNode = cardNode.querySelector(".usnews-ranking");
+      const csNode = cardNode.querySelector(".cs-ranking");
+      
+      // Determine display order based on ranking (lower number = higher rank)
+      const rankings = [
+        { node: qsNode, rank: school.qs || Infinity },
+        { node: usnNode, rank: school.usNews || Infinity },
+        { node: csNode, rank: school.cs || Infinity }
+      ];
+      
+      rankings.sort((a, b) => a.rank - b.rank);
+      
+      rankings.forEach(item => {
+        rankingsContainer.appendChild(item.node);
+      });
+
+      if (school.usNews) {
+        usnNode.hidden = false;
+        usnNode.querySelector(".usnews-value").textContent = school.usNews;
+      }
+      if (school.qs) {
+        qsNode.hidden = false;
+        qsNode.querySelector(".qs-value").textContent = school.qs;
+      }
+      if (school.cs) {
+        csNode.hidden = false;
+        csNode.querySelector(".cs-value").textContent = school.cs;
+      }
 
       const progressNode = cardNode.querySelector(".program-progress");
       renderStatusProgress(progressNode, program);

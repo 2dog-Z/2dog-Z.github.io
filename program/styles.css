@@ -393,6 +393,25 @@ h1 {
   min-width: 0;
 }
 
+.program-rankings {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.ranking-badge {
+  font-size: 0.75rem;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
 .program-subtitle {
   margin: 0;
   color: var(--text-muted);
