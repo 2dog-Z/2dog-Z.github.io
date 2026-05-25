@@ -24,7 +24,7 @@ const SCHOOL_OPTIONS = [
   { id: "northwestern", short: "Northwestern", cn: "西北大学", en: "Northwestern University", domain: "www.northwestern.edu", qs: 50, usNews: 24, cs: 45 },
   { id: "columbia", short: "Columbia", cn: "哥伦比亚大学", en: "Columbia University", domain: "www.columbia.edu", qs: 34, usNews: 10, cs: 36 },
   { id: "cornell", short: "Cornell", cn: "康奈尔大学", en: "Cornell University", domain: "www.cornell.edu", qs: 16, usNews: 16, cs: 15 },
-  { id: "cornelltech", short: "Cornell Tech", cn: "康奈尔大学理工校区", en: "Cornell University Tech Campus", domain: "tech.cornell.edu", qs: 16, usNews: 16, cs: 15 },
+  { id: "cornelltech", short: "Cornell Tech", cn: "康奈尔大学Tech校区", en: "Cornell University Tech Campus", domain: "tech.cornell.edu", qs: 16, usNews: 16, cs: 15 },
   { id: "upenn", short: "UPenn", cn: "宾夕法尼亚大学", en: "University of Pennsylvania", domain: "www.upenn.edu", qs: 11, usNews: 15, cs: 31 },
   { id: "chicago", short: "UChicago", cn: "芝加哥大学", en: "University of Chicago", domain: "www.uchicago.edu", qs: 21, usNews: 26, cs: 45 },
   { id: "berkeley", short: "UC Berkeley", cn: "加州大学伯克利分校", en: "University of California, Berkeley", domain: "www.berkeley.edu", qs: 12, usNews: 6, cs: 13 },
