@@ -478,6 +478,14 @@ function renderBoard() {
         csNode.querySelector(".cs-value").textContent = school.cs;
       }
 
+      const ddlDisplay = cardNode.querySelector(".program-ddl-display");
+      if (program.ddlTime) {
+        cardNode.querySelector(".program-ddl-value").textContent = program.ddlTime;
+        ddlDisplay.hidden = false;
+      } else {
+        ddlDisplay.hidden = true;
+      }
+
       const progressNode = cardNode.querySelector(".program-progress");
       renderStatusProgress(progressNode, program);
       

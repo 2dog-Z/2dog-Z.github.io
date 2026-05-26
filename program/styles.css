@@ -364,6 +364,20 @@ h1 {
   background: #d24a4a;
 }
 
+.program-ddl-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--danger);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.program-ddl-display .ddl-icon {
+  font-size: 0.95rem;
+}
+
 .program-status-text {
   margin: 0;
   font-size: 0.88rem;
