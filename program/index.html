@@ -82,6 +82,36 @@
           <select id="program-status" name="status"></select>
         </label>
 
+        <label>
+          <span>项目官网地址</span>
+          <input id="program-website" name="websiteUrl" type="url" maxlength="255">
+        </label>
+
+        <label>
+          <span>DDL时间</span>
+          <input id="program-ddl" name="ddlTime" type="text" maxlength="80">
+        </label>
+
+        <label>
+          <span>GRE要求</span>
+          <input id="program-gre" name="greRequirement" type="text" maxlength="80" placeholder="默认无">
+        </label>
+
+        <label>
+          <span>语言要求</span>
+          <input id="program-lang" name="languageRequirement" type="text" maxlength="80" placeholder="默认免">
+        </label>
+
+        <label>
+          <span>推荐信要求</span>
+          <input id="program-rec" name="recommendationRequirement" type="text" maxlength="120">
+        </label>
+
+        <label>
+          <span>其他要求</span>
+          <textarea id="program-other" name="otherRequirements" rows="3" maxlength="500"></textarea>
+        </label>
+
         <div class="modal-actions">
           <button id="delete-button" class="action-button danger hidden" type="button">删除</button>
           <div class="spacer"></div>
@@ -110,6 +140,42 @@
           <button class="action-button primary" type="submit">Login</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="read-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-read-modal="true"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="read-modal-title">
+      <div class="modal-header">
+        <h2 id="read-modal-title">项目详情</h2>
+        <button id="read-modal-close" class="icon-button subtle" type="button" aria-label="关闭弹窗">×</button>
+      </div>
+      <div class="modal-form" style="gap: 20px;">
+        <div class="read-field">
+          <span style="font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 0.9em;">项目官网地址</span>
+          <a id="read-website" href="#" target="_blank" rel="noreferrer" style="word-break: break-all;">-</a>
+        </div>
+        <div class="read-field">
+          <span style="font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 0.9em;">DDL时间</span>
+          <div id="read-ddl">-</div>
+        </div>
+        <div class="read-field">
+          <span style="font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 0.9em;">GRE要求</span>
+          <div id="read-gre">无</div>
+        </div>
+        <div class="read-field">
+          <span style="font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 0.9em;">语言要求</span>
+          <div id="read-lang">免</div>
+        </div>
+        <div class="read-field">
+          <span style="font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 0.9em;">推荐信要求</span>
+          <div id="read-rec">-</div>
+        </div>
+        <div class="read-field">
+          <span style="font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 0.9em;">其他要求</span>
+          <div id="read-other" style="white-space: pre-wrap;">-</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -159,7 +225,6 @@
           <p class="program-status-text"></p>
         </div>
       </div>
-      <button class="icon-button program-edit-button" type="button" title="编辑项目">✏️</button>
     </article>
   </template>
 

@@ -148,6 +148,12 @@ const elements = {
   enNameInput: document.querySelector("#program-en-name"),
   durationSelect: document.querySelector("#program-duration"),
   statusSelect: document.querySelector("#program-status"),
+  websiteInput: document.querySelector("#program-website"),
+  ddlInput: document.querySelector("#program-ddl"),
+  greInput: document.querySelector("#program-gre"),
+  langInput: document.querySelector("#program-lang"),
+  recInput: document.querySelector("#program-rec"),
+  otherInput: document.querySelector("#program-other"),
   saveStatus: document.querySelector("#save-status"),
   programCount: document.querySelector("#program-count"),
   modalLogo: document.querySelector("#modal-school-logo"),
@@ -156,7 +162,15 @@ const elements = {
   unlockCloseButtons: document.querySelectorAll("[data-close-unlock-modal='true'], #unlock-modal-close"),
   unlockForm: document.querySelector("#unlock-form"),
   unlockPasswordInput: document.querySelector("#unlock-password"),
-  unlockError: document.querySelector("#unlock-error")
+  unlockError: document.querySelector("#unlock-error"),
+  readModal: document.querySelector("#read-modal"),
+  readCloseButtons: document.querySelectorAll("[data-close-read-modal='true'], #read-modal-close"),
+  readWebsite: document.querySelector("#read-website"),
+  readDdl: document.querySelector("#read-ddl"),
+  readGre: document.querySelector("#read-gre"),
+  readLang: document.querySelector("#read-lang"),
+  readRec: document.querySelector("#read-rec"),
+  readOther: document.querySelector("#read-other")
 };
 
 const schoolMap = new Map(SCHOOL_OPTIONS.map((school) => [school.id, school]));
@@ -221,6 +235,10 @@ function bindModalEvents() {
     button.addEventListener("click", closeModal);
   });
 
+  elements.readCloseButtons.forEach((button) => {
+    button.addEventListener("click", closeReadModal);
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements.modal.classList.contains("hidden")) {
       closeModal();
@@ -228,6 +246,10 @@ function bindModalEvents() {
 
     if (event.key === "Escape" && !elements.unlockModal.classList.contains("hidden")) {
       closeUnlockModal();
+    }
+
+    if (event.key === "Escape" && !elements.readModal.classList.contains("hidden")) {
+      closeReadModal();
     }
   });
 }
@@ -244,7 +266,13 @@ function bindFormEvents() {
       cnName: elements.cnNameInput.value.trim(),
       enName: elements.enNameInput.value.trim(),
       duration: elements.durationSelect.value,
-      selectedStatus: elements.statusSelect.value
+      selectedStatus: elements.statusSelect.value,
+      websiteUrl: elements.websiteInput.value.trim(),
+      ddlTime: elements.ddlInput.value.trim(),
+      greRequirement: elements.greInput.value.trim(),
+      languageRequirement: elements.langInput.value.trim(),
+      recommendationRequirement: elements.recInput.value.trim(),
+      otherRequirements: elements.otherInput.value.trim()
     };
 
     if (!payload.shortName || !payload.schoolId || !payload.cnName || !payload.enName || !payload.selectedStatus) {
@@ -263,6 +291,12 @@ function bindFormEvents() {
           cnName: payload.cnName,
           enName: payload.enName,
           duration: payload.duration,
+          websiteUrl: payload.websiteUrl,
+          ddlTime: payload.ddlTime,
+          greRequirement: payload.greRequirement,
+          languageRequirement: payload.languageRequirement,
+          recommendationRequirement: payload.recommendationRequirement,
+          otherRequirements: payload.otherRequirements,
           statusHistory
         })
       );
@@ -281,6 +315,12 @@ function bindFormEvents() {
           cnName: payload.cnName,
           enName: payload.enName,
           duration: payload.duration,
+          websiteUrl: payload.websiteUrl,
+          ddlTime: payload.ddlTime,
+          greRequirement: payload.greRequirement,
+          languageRequirement: payload.languageRequirement,
+          recommendationRequirement: payload.recommendationRequirement,
+          otherRequirements: payload.otherRequirements,
           statusHistory: buildNextStatusHistory(program.statusHistory, payload.selectedStatus)
         });
       });
@@ -440,11 +480,16 @@ function renderBoard() {
 
       const progressNode = cardNode.querySelector(".program-progress");
       renderStatusProgress(progressNode, program);
+      
+      cardNode.addEventListener("click", (event) => {
+        if (state.isUnlocked) {
+          openEditModal(program.id);
+        } else {
+          openReadModal(program.id);
+        }
+      });
 
-      const editButton = cardNode.querySelector(".program-edit-button");
-      editButton.hidden = !state.isUnlocked;
       if (state.isUnlocked) {
-        editButton.addEventListener("click", () => openEditModal(program.id));
         wireProgramDnD(cardNode);
       }
 
@@ -649,6 +694,12 @@ function openEditModal(programId) {
   elements.cnNameInput.value = program.cnName;
   elements.enNameInput.value = program.enName;
   elements.durationSelect.value = program.duration || "";
+  elements.websiteInput.value = program.websiteUrl || "";
+  elements.ddlInput.value = program.ddlTime || "";
+  elements.greInput.value = program.greRequirement || "";
+  elements.langInput.value = program.languageRequirement || "";
+  elements.recInput.value = program.recommendationRequirement || "";
+  elements.otherInput.value = program.otherRequirements || "";
 
   populateStatusSelect(program.statusHistory, `${getCurrentStatus(program)}:stay`);
   updateModalSchoolPreview();
@@ -682,6 +733,35 @@ function showModal() {
 function closeModal() {
   elements.modal.classList.add("hidden");
   elements.modal.setAttribute("aria-hidden", "true");
+}
+
+function openReadModal(programId) {
+  const program = state.programs.find((item) => item.id === programId);
+  if (!program) {
+    return;
+  }
+
+  if (program.websiteUrl) {
+    elements.readWebsite.href = program.websiteUrl;
+    elements.readWebsite.textContent = program.websiteUrl;
+  } else {
+    elements.readWebsite.removeAttribute("href");
+    elements.readWebsite.textContent = "-";
+  }
+
+  elements.readDdl.textContent = program.ddlTime || "-";
+  elements.readGre.textContent = program.greRequirement || "无";
+  elements.readLang.textContent = program.languageRequirement || "免";
+  elements.readRec.textContent = program.recommendationRequirement || "-";
+  elements.readOther.textContent = program.otherRequirements || "-";
+
+  elements.readModal.classList.remove("hidden");
+  elements.readModal.setAttribute("aria-hidden", "false");
+}
+
+function closeReadModal() {
+  elements.readModal.classList.add("hidden");
+  elements.readModal.setAttribute("aria-hidden", "true");
 }
 
 function openUnlockModal() {
@@ -740,6 +820,12 @@ function normalizeProgram(program) {
     cnName: program?.cnName || "",
     enName: program?.enName || "",
     duration: program?.duration || "",
+    websiteUrl: program?.websiteUrl || "",
+    ddlTime: program?.ddlTime || "",
+    greRequirement: program?.greRequirement || "",
+    languageRequirement: program?.languageRequirement || "",
+    recommendationRequirement: program?.recommendationRequirement || "",
+    otherRequirements: program?.otherRequirements || "",
     statusHistory: history
   };
 }

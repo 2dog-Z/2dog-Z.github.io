@@ -226,16 +226,13 @@ h1 {
   font-size: 0.95rem;
 }
 
-.tier-add-button,
-.program-edit-button {
+.tier-add-button {
   opacity: 0;
   transform: translateY(4px);
   transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
 }
 
-.tier-header:hover .tier-add-button,
-.program-card:hover .program-edit-button,
-.program-card:focus-within .program-edit-button {
+.tier-header:hover .tier-add-button {
   opacity: 1;
   transform: translateY(0);
 }
@@ -244,12 +241,6 @@ h1 {
 .tier-column.is-locked:hover .tier-add-button,
 .tier-column.is-locked:focus-within .tier-add-button {
   display: none !important;
-  opacity: 0;
-  transform: translateY(4px);
-}
-
-.program-card.is-locked:hover .program-edit-button,
-.program-card.is-locked:focus-within .program-edit-button {
   opacity: 0;
   transform: translateY(4px);
 }
@@ -285,6 +276,7 @@ h1 {
   padding: 16px 0 18px;
   border-bottom: 1px solid #e3e7ed;
   transition: background-color 0.18s ease;
+  cursor: pointer;
 }
 
 .program-card:hover,
@@ -294,10 +286,11 @@ h1 {
 
 .program-card.dragging {
   opacity: 0.55;
+  cursor: grab;
 }
 
 .program-card.is-locked {
-  cursor: default;
+  cursor: pointer;
 }
 
 .program-card.is-locked:hover {
@@ -484,12 +477,6 @@ h1 {
 #modal-school-logo {
   object-fit: cover;
   background: #fff;
-}
-
-.program-edit-button {
-  position: absolute;
-  right: 0;
-  bottom: 12px;
 }
 
 .icon-button {
