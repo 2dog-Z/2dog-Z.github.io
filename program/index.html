@@ -68,6 +68,16 @@
         </label>
 
         <label>
+          <span>学制</span>
+          <select id="program-duration" name="duration">
+            <option value="">未指定</option>
+            <option value="1 year">1 year</option>
+            <option value="1.5 year">1.5 year</option>
+            <option value="2 year">2 year</option>
+          </select>
+        </label>
+
+        <label>
           <span>项目状态</span>
           <select id="program-status" name="status"></select>
         </label>
@@ -127,7 +137,10 @@
           <div class="program-title-group">
             <h3 class="program-title">
               <span class="program-short-name"></span>
-              <span class="program-school-name"></span>
+              <span class="program-school-group">
+                <span class="program-school-name"></span>
+                <span class="ranking-badge duration-badge" hidden></span>
+              </span>
               <span class="program-rankings">
                 <span class="ranking-badge usnews-ranking" title="US News Ranking" hidden>US: <span class="usnews-value"></span></span>
                 <span class="ranking-badge qs-ranking" title="QS Ranking" hidden>QS: <span class="qs-value"></span></span>

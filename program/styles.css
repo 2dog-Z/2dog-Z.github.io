@@ -393,6 +393,13 @@ h1 {
   min-width: 0;
 }
 
+.program-school-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .program-rankings {
   display: inline-flex;
   gap: 6px;
@@ -752,6 +759,7 @@ h1 {
   }
 
   .program-school-name,
+  .program-school-group,
   .program-subtitle,
   .program-description,
   .program-status-side {

@@ -146,6 +146,7 @@ const elements = {
   schoolSelect: document.querySelector("#program-school"),
   cnNameInput: document.querySelector("#program-cn-name"),
   enNameInput: document.querySelector("#program-en-name"),
+  durationSelect: document.querySelector("#program-duration"),
   statusSelect: document.querySelector("#program-status"),
   saveStatus: document.querySelector("#save-status"),
   programCount: document.querySelector("#program-count"),
@@ -242,6 +243,7 @@ function bindFormEvents() {
       schoolId: elements.schoolSelect.value,
       cnName: elements.cnNameInput.value.trim(),
       enName: elements.enNameInput.value.trim(),
+      duration: elements.durationSelect.value,
       selectedStatus: elements.statusSelect.value
     };
 
@@ -260,6 +262,7 @@ function bindFormEvents() {
           schoolId: payload.schoolId,
           cnName: payload.cnName,
           enName: payload.enName,
+          duration: payload.duration,
           statusHistory
         })
       );
@@ -277,6 +280,7 @@ function bindFormEvents() {
           schoolId: payload.schoolId,
           cnName: payload.cnName,
           enName: payload.enName,
+          duration: payload.duration,
           statusHistory: buildNextStatusHistory(program.statusHistory, payload.selectedStatus)
         });
       });
@@ -391,6 +395,14 @@ function renderBoard() {
       const qsNode = cardNode.querySelector(".qs-ranking");
       const usnNode = cardNode.querySelector(".usnews-ranking");
       const csNode = cardNode.querySelector(".cs-ranking");
+      const durationBadge = cardNode.querySelector(".duration-badge");
+
+      if (program.duration) {
+        durationBadge.textContent = program.duration;
+        durationBadge.hidden = false;
+      } else {
+        durationBadge.hidden = true;
+      }
       
       // Determine display order based on ranking (lower number = higher rank)
       const rankings = [
@@ -600,6 +612,7 @@ function openCreateModal(tierId) {
 
   elements.form.reset();
   elements.schoolSelect.value = SCHOOL_OPTIONS[0].id;
+  elements.durationSelect.value = "";
   populateStatusSelect([], "draft:stay");
   updateModalSchoolPreview();
   showModal();
@@ -627,6 +640,7 @@ function openEditModal(programId) {
   elements.schoolSelect.value = program.schoolId;
   elements.cnNameInput.value = program.cnName;
   elements.enNameInput.value = program.enName;
+  elements.durationSelect.value = program.duration || "";
 
   populateStatusSelect(program.statusHistory, `${getCurrentStatus(program)}:stay`);
   updateModalSchoolPreview();
@@ -717,6 +731,7 @@ function normalizeProgram(program) {
     schoolId: schoolMap.has(program?.schoolId) ? program.schoolId : SCHOOL_OPTIONS[0].id,
     cnName: program?.cnName || "",
     enName: program?.enName || "",
+    duration: program?.duration || "",
     statusHistory: history
   };
 }
