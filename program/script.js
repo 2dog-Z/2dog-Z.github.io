@@ -399,6 +399,14 @@ function renderBoard() {
 
       if (program.duration) {
         durationBadge.textContent = program.duration;
+        durationBadge.className = "ranking-badge duration-badge"; // Reset classes
+        if (program.duration === "1 year") {
+          durationBadge.classList.add("duration-1");
+        } else if (program.duration === "1.5 year") {
+          durationBadge.classList.add("duration-1-5");
+        } else if (program.duration === "2 year") {
+          durationBadge.classList.add("duration-2");
+        }
         durationBadge.hidden = false;
       } else {
         durationBadge.hidden = true;
