@@ -136,13 +136,16 @@ const elements = {
   tierTemplate: document.querySelector("#tier-template"),
   programTemplate: document.querySelector("#program-template"),
   unlockButton: document.querySelector("#unlock-button"),
+  trashButton: document.querySelector("#trash-button"),
   modal: document.querySelector("#program-modal"),
   modalTitle: document.querySelector("#modal-title"),
   closeModalButtons: document.querySelectorAll("[data-close-modal='true'], #modal-close"),
   form: document.querySelector("#program-form"),
   submitButton: document.querySelector("#submit-button"),
   deleteButton: document.querySelector("#delete-button"),
+  purgeButton: document.querySelector("#purge-button"),
   shortNameInput: document.querySelector("#program-short-name"),
+  schoolSearchInput: document.querySelector("#program-school-search"),
   schoolSelect: document.querySelector("#program-school"),
   cnNameInput: document.querySelector("#program-cn-name"),
   enNameInput: document.querySelector("#program-en-name"),
@@ -163,6 +166,10 @@ const elements = {
   unlockForm: document.querySelector("#unlock-form"),
   unlockPasswordInput: document.querySelector("#unlock-password"),
   unlockError: document.querySelector("#unlock-error"),
+  trashModal: document.querySelector("#trash-modal"),
+  trashCloseButtons: document.querySelectorAll("[data-close-trash-modal='true'], #trash-modal-close"),
+  trashBoard: document.querySelector("#trash-board"),
+  trashCount: document.querySelector("#trash-count"),
   readModal: document.querySelector("#read-modal"),
   readCloseButtons: document.querySelectorAll("[data-close-read-modal='true'], #read-modal-close"),
   readWebsite: document.querySelector("#read-website"),
@@ -186,7 +193,8 @@ const state = {
   dropHappened: false,
   syncing: false,
   isUnlocked: false,
-  authToken: null
+  authToken: null,
+  modalContext: "active"
 };
 
 document.addEventListener("DOMContentLoaded", initialize);
@@ -196,6 +204,7 @@ async function initialize() {
   bindModalEvents();
   bindFormEvents();
   bindUnlockEvents();
+  bindTrashEvents();
 
   state.programs = normalizePrograms(loadLocalCache());
   renderBoard();
@@ -217,9 +226,15 @@ async function initialize() {
 }
 
 function populateSchoolOptions() {
+  syncSchoolOptions("", elements.schoolSelect.value || SCHOOL_OPTIONS[0].id);
+}
+
+function syncSchoolOptions(query = "", preferredSchoolId = "") {
+  const normalizedQuery = normalizeSchoolSearchQuery(query);
+  const filteredSchools = getFilteredSchoolOptions(normalizedQuery);
   const fragment = document.createDocumentFragment();
 
-  SCHOOL_OPTIONS.forEach((school) => {
+  filteredSchools.forEach((school) => {
     const option = document.createElement("option");
     option.value = school.id;
     option.textContent = `${school.short} | ${school.cn}`;
@@ -227,7 +242,40 @@ function populateSchoolOptions() {
   });
 
   elements.schoolSelect.innerHTML = "";
+
+  if (filteredSchools.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No matching schools";
+    option.disabled = true;
+    option.selected = true;
+    elements.schoolSelect.appendChild(option);
+    elements.schoolSelect.disabled = true;
+    return;
+  }
+
+  elements.schoolSelect.disabled = false;
   elements.schoolSelect.appendChild(fragment);
+
+  const nextSchoolId = filteredSchools.some((school) => school.id === preferredSchoolId)
+    ? preferredSchoolId
+    : filteredSchools[0].id;
+  elements.schoolSelect.value = nextSchoolId;
+}
+
+function getFilteredSchoolOptions(query) {
+  if (!query) {
+    return SCHOOL_OPTIONS;
+  }
+
+  return SCHOOL_OPTIONS.filter((school) => {
+    const keywords = [school.short, school.en].map((value) => String(value || "").toLowerCase());
+    return keywords.some((value) => value.includes(query));
+  });
+}
+
+function normalizeSchoolSearchQuery(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function bindModalEvents() {
@@ -251,10 +299,20 @@ function bindModalEvents() {
     if (event.key === "Escape" && !elements.readModal.classList.contains("hidden")) {
       closeReadModal();
     }
+
+    if (event.key === "Escape" && !elements.trashModal.classList.contains("hidden")) {
+      closeTrashModal();
+    }
   });
 }
 
 function bindFormEvents() {
+  elements.schoolSearchInput.addEventListener("input", () => {
+    const currentSelectedId = elements.schoolSelect.value;
+    syncSchoolOptions(elements.schoolSearchInput.value, currentSelectedId);
+    updateModalSchoolPreview();
+  });
+
   elements.schoolSelect.addEventListener("change", updateModalSchoolPreview);
 
   elements.form.addEventListener("submit", (event) => {
@@ -297,6 +355,7 @@ function bindFormEvents() {
           languageRequirement: payload.languageRequirement,
           recommendationRequirement: payload.recommendationRequirement,
           otherRequirements: payload.otherRequirements,
+          shown: 1,
           statusHistory
         })
       );
@@ -336,10 +395,37 @@ function bindFormEvents() {
       return;
     }
 
+    const nextShown = state.modalContext === "trash" ? 1 : 0;
+
+    state.programs = state.programs.map((program) => {
+      if (program.id !== state.activeProgramId) {
+        return program;
+      }
+
+      return normalizeProgram({
+        ...program,
+        shown: nextShown
+      });
+    });
+    renderBoard();
+    closeModal();
+    scheduleSave(state.modalContext === "trash" ? "restore" : "delete", 120);
+  });
+
+  elements.purgeButton.addEventListener("click", () => {
+    if (!state.activeProgramId || state.modalContext !== "trash") {
+      return;
+    }
+
+    const confirmed = window.confirm("永久删除后将无法从回收站恢复，确定继续吗？");
+    if (!confirmed) {
+      return;
+    }
+
     state.programs = state.programs.filter((program) => program.id !== state.activeProgramId);
     renderBoard();
     closeModal();
-    scheduleSave("delete", 120);
+    scheduleSave("purge", 120);
   });
 }
 
@@ -388,10 +474,60 @@ function bindUnlockEvents() {
   });
 }
 
+function bindTrashEvents() {
+  elements.trashButton.addEventListener("click", openTrashModal);
+
+  elements.trashCloseButtons.forEach((button) => {
+    button.addEventListener("click", closeTrashModal);
+  });
+}
+
 function renderBoard() {
   updateUnlockButtonState();
   updateProgramCount();
-  elements.board.innerHTML = "";
+  renderProgramBoard({
+    container: elements.board,
+    shownValue: 1,
+    allowCreate: true,
+    emptyMessage: "拖拽项目到这里，或点击右上角新建",
+    lockedEmptyMessage: "当前为冻结模式，悬停右侧点击⚙️并输入密码后解锁",
+    editContext: "active"
+  });
+  renderTrashBoard();
+}
+
+function updateProgramCount() {
+  const count = Array.isArray(state.programs)
+    ? state.programs.filter((program) => program.shown === 1).length
+    : 0;
+  elements.programCount.textContent = `${count} Programs In Total`;
+}
+
+function updateTrashCount() {
+  const count = Array.isArray(state.programs)
+    ? state.programs.filter((program) => program.shown === 0).length
+    : 0;
+  elements.trashCount.textContent = `${count} Programs In Trash`;
+}
+
+function renderTrashBoard() {
+  updateTrashCount();
+  renderProgramBoard({
+    container: elements.trashBoard,
+    shownValue: 0,
+    allowCreate: false,
+    emptyMessage: "回收站里还没有项目",
+    lockedEmptyMessage: "登录后可查看回收站项目",
+    editContext: "trash"
+  });
+}
+
+function renderProgramBoard({ container, shownValue, allowCreate, emptyMessage, lockedEmptyMessage, editContext }) {
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = "";
 
   TIER_DEFINITIONS.forEach((tier) => {
     const tierNode = elements.tierTemplate.content.firstElementChild.cloneNode(true);
@@ -404,118 +540,121 @@ function renderBoard() {
     subtitle.textContent = tier.subtitle || "";
     list.dataset.tierId = tier.id;
     list.dataset.locked = state.isUnlocked ? "false" : "true";
+    list.dataset.emptyMessage = emptyMessage;
+    list.dataset.lockedEmptyMessage = lockedEmptyMessage || emptyMessage;
     tierNode.classList.toggle("is-locked", !state.isUnlocked);
-    addButton.hidden = !state.isUnlocked;
+    addButton.hidden = !state.isUnlocked || !allowCreate;
 
-    if (state.isUnlocked) {
+    if (state.isUnlocked && allowCreate) {
       addButton.addEventListener("click", () => openCreateModal(tier.id));
-      wireTierListDnD(list);
     }
 
-    const programs = getProgramsByTier(tier.id);
+    if (state.isUnlocked) {
+      wireTierListDnD(list, container, shownValue);
+    }
+
+    const programs = getProgramsByTier(tier.id, shownValue);
     list.classList.toggle("empty", programs.length === 0);
 
     programs.forEach((program) => {
-      const cardNode = elements.programTemplate.content.firstElementChild.cloneNode(true);
-      const school = getSchoolById(program.schoolId);
-
-      cardNode.dataset.programId = program.id;
-      cardNode.dataset.tierId = program.tierId;
-      cardNode.draggable = state.isUnlocked;
-      cardNode.classList.toggle("is-locked", !state.isUnlocked);
-
-      cardNode.querySelector(".program-short-name").textContent = program.shortName;
-      cardNode.querySelector(".program-school-name").textContent = `@ ${school.short} ${school.cn}`;
-      cardNode.querySelector(".program-subtitle").textContent = school.en;
-      cardNode.querySelector(".program-cn-name").textContent = program.cnName;
-      cardNode.querySelector(".program-en-name").textContent = program.enName;
-      cardNode.querySelector(".program-status-text").textContent = getCurrentStatusLabel(program);
-
-      const rankingsContainer = cardNode.querySelector(".program-rankings");
-      const qsNode = cardNode.querySelector(".qs-ranking");
-      const usnNode = cardNode.querySelector(".usnews-ranking");
-      const csNode = cardNode.querySelector(".cs-ranking");
-      const durationBadge = cardNode.querySelector(".duration-badge");
-
-      if (program.duration) {
-        durationBadge.textContent = program.duration;
-        durationBadge.className = "ranking-badge duration-badge"; // Reset classes
-        if (program.duration === "1 year") {
-          durationBadge.classList.add("duration-1");
-        } else if (program.duration === "1.5 year") {
-          durationBadge.classList.add("duration-1-5");
-        } else if (program.duration === "2 year") {
-          durationBadge.classList.add("duration-2");
-        }
-        durationBadge.hidden = false;
-      } else {
-        durationBadge.hidden = true;
-      }
-      
-      // Determine display order based on ranking (lower number = higher rank)
-      const rankings = [
-        { node: qsNode, rank: school.qs || Infinity },
-        { node: usnNode, rank: school.usNews || Infinity },
-        { node: csNode, rank: school.cs || Infinity }
-      ];
-      
-      rankings.sort((a, b) => a.rank - b.rank);
-      
-      rankings.forEach(item => {
-        rankingsContainer.appendChild(item.node);
-      });
-
-      if (school.usNews) {
-        usnNode.hidden = false;
-        usnNode.querySelector(".usnews-value").textContent = school.usNews;
-      }
-      if (school.qs) {
-        qsNode.hidden = false;
-        qsNode.querySelector(".qs-value").textContent = school.qs;
-      }
-      if (school.cs) {
-        csNode.hidden = false;
-        csNode.querySelector(".cs-value").textContent = school.cs;
-      }
-
-      const ddlDisplay = cardNode.querySelector(".program-ddl-display");
-      if (program.ddlTime) {
-        cardNode.querySelector(".program-ddl-value").textContent = program.ddlTime;
-        ddlDisplay.hidden = false;
-      } else {
-        ddlDisplay.hidden = true;
-      }
-
-      const progressNode = cardNode.querySelector(".program-progress");
-      renderStatusProgress(progressNode, program);
-      
-      cardNode.addEventListener("click", (event) => {
-        if (state.isUnlocked) {
-          openEditModal(program.id);
-        } else {
-          openReadModal(program.id);
-        }
-      });
-
-      if (state.isUnlocked) {
-        wireProgramDnD(cardNode);
-      }
-
-      const logo = cardNode.querySelector(".school-logo");
-      const placeholder = cardNode.querySelector(".logo-placeholder");
-      loadSchoolLogo(logo, placeholder, school);
-
+      const cardNode = createProgramCard(program, editContext);
       list.appendChild(cardNode);
     });
 
     tierNode.dataset.tierId = tier.id;
-    elements.board.appendChild(tierNode);
+    container.appendChild(tierNode);
   });
 }
 
-function updateProgramCount() {
-  const count = Array.isArray(state.programs) ? state.programs.length : 0;
-  elements.programCount.textContent = `${count} Programs In Total`;
+function createProgramCard(program, editContext) {
+  const cardNode = elements.programTemplate.content.firstElementChild.cloneNode(true);
+  const school = getSchoolById(program.schoolId);
+
+  cardNode.dataset.programId = program.id;
+  cardNode.dataset.tierId = program.tierId;
+  cardNode.draggable = state.isUnlocked;
+  cardNode.classList.toggle("is-locked", !state.isUnlocked);
+
+  cardNode.querySelector(".program-short-name").textContent = program.shortName;
+  cardNode.querySelector(".program-school-name").textContent = `@ ${school.short} ${school.cn}`;
+  cardNode.querySelector(".program-subtitle").textContent = school.en;
+  cardNode.querySelector(".program-cn-name").textContent = program.cnName;
+  cardNode.querySelector(".program-en-name").textContent = program.enName;
+  cardNode.querySelector(".program-status-text").textContent = getCurrentStatusLabel(program);
+
+  const rankingsContainer = cardNode.querySelector(".program-rankings");
+  const qsNode = cardNode.querySelector(".qs-ranking");
+  const usnNode = cardNode.querySelector(".usnews-ranking");
+  const csNode = cardNode.querySelector(".cs-ranking");
+  const durationBadge = cardNode.querySelector(".duration-badge");
+
+  if (program.duration) {
+    durationBadge.textContent = program.duration;
+    durationBadge.className = "ranking-badge duration-badge";
+    if (program.duration === "1 year") {
+      durationBadge.classList.add("duration-1");
+    } else if (program.duration === "1.5 year") {
+      durationBadge.classList.add("duration-1-5");
+    } else if (program.duration === "2 year") {
+      durationBadge.classList.add("duration-2");
+    }
+    durationBadge.hidden = false;
+  } else {
+    durationBadge.hidden = true;
+  }
+
+  const rankings = [
+    { node: qsNode, rank: school.qs || Infinity },
+    { node: usnNode, rank: school.usNews || Infinity },
+    { node: csNode, rank: school.cs || Infinity }
+  ];
+
+  rankings.sort((a, b) => a.rank - b.rank);
+  rankings.forEach((item) => {
+    rankingsContainer.appendChild(item.node);
+  });
+
+  if (school.usNews) {
+    usnNode.hidden = false;
+    usnNode.querySelector(".usnews-value").textContent = school.usNews;
+  }
+  if (school.qs) {
+    qsNode.hidden = false;
+    qsNode.querySelector(".qs-value").textContent = school.qs;
+  }
+  if (school.cs) {
+    csNode.hidden = false;
+    csNode.querySelector(".cs-value").textContent = school.cs;
+  }
+
+  const ddlDisplay = cardNode.querySelector(".program-ddl-display");
+  if (program.ddlTime) {
+    cardNode.querySelector(".program-ddl-value").textContent = program.ddlTime;
+    ddlDisplay.hidden = false;
+  } else {
+    ddlDisplay.hidden = true;
+  }
+
+  const progressNode = cardNode.querySelector(".program-progress");
+  renderStatusProgress(progressNode, program);
+
+  cardNode.addEventListener("click", () => {
+    if (state.isUnlocked) {
+      openEditModal(program.id, editContext);
+    } else {
+      openReadModal(program.id);
+    }
+  });
+
+  if (state.isUnlocked) {
+    wireProgramDnD(cardNode);
+  }
+
+  const logo = cardNode.querySelector(".school-logo");
+  const placeholder = cardNode.querySelector(".logo-placeholder");
+  loadSchoolLogo(logo, placeholder, school);
+
+  return cardNode;
 }
 
 function renderStatusProgress(progressNode, program) {
@@ -557,7 +696,7 @@ function wireProgramDnD(cardNode) {
   });
 }
 
-function wireTierListDnD(list) {
+function wireTierListDnD(list, boardRoot, shownValue) {
   list.addEventListener("dragover", (event) => {
     event.preventDefault();
     const draggingCard = document.querySelector(".program-card.dragging");
@@ -578,7 +717,7 @@ function wireTierListDnD(list) {
 
   list.addEventListener("drop", (event) => {
     event.preventDefault();
-    const didChange = syncProgramsFromDom();
+    const didChange = syncProgramsFromDom(boardRoot, shownValue);
 
     // #region debug-point A:drop
     reportDebugEvent("A", "script.js:drop", "drop event processed", {
@@ -622,18 +761,22 @@ function getDragAfterElement(list, mouseY) {
   ).element;
 }
 
-function syncProgramsFromDom() {
+function syncProgramsFromDom(boardRoot, shownValue) {
+  const currentSubset = state.programs
+    .filter((program) => program.shown === shownValue)
+    .map((program) => normalizeProgram(program));
+
   const previous = JSON.stringify(
-    state.programs.map((program) => ({
+    currentSubset.map((program) => ({
       id: program.id,
       tierId: program.tierId
     }))
   );
 
-  const programMap = new Map(state.programs.map((program) => [program.id, normalizeProgram(program)]));
+  const programMap = new Map(currentSubset.map((program) => [program.id, program]));
   const nextPrograms = [];
 
-  document.querySelectorAll(".tier-list").forEach((list) => {
+  boardRoot.querySelectorAll(".tier-list").forEach((list) => {
     const tierId = list.dataset.tierId;
     list.querySelectorAll(".program-card").forEach((card) => {
       const program = programMap.get(card.dataset.programId);
@@ -646,10 +789,16 @@ function syncProgramsFromDom() {
     });
   });
 
-  state.programs = nextPrograms;
+  const remainingPrograms = state.programs
+    .filter((program) => program.shown !== shownValue)
+    .map((program) => normalizeProgram(program));
+
+  state.programs = shownValue === 1
+    ? [...nextPrograms, ...remainingPrograms]
+    : [...remainingPrograms, ...nextPrograms];
 
   const current = JSON.stringify(
-    state.programs.map((program) => ({
+    nextPrograms.map((program) => ({
       id: program.id,
       tierId: program.tierId
     }))
@@ -664,22 +813,25 @@ function openCreateModal(tierId) {
   }
 
   state.modalMode = "create";
+  state.modalContext = "active";
   state.activeProgramId = null;
   state.activeTierId = tierId;
 
   elements.modalTitle.textContent = "新建项目";
   elements.submitButton.textContent = "新建";
   elements.deleteButton.classList.add("hidden");
+  elements.purgeButton.classList.add("hidden");
 
   elements.form.reset();
-  elements.schoolSelect.value = SCHOOL_OPTIONS[0].id;
+  elements.schoolSearchInput.value = "";
+  syncSchoolOptions("", SCHOOL_OPTIONS[0].id);
   elements.durationSelect.value = "";
   populateStatusSelect([], "draft:stay");
   updateModalSchoolPreview();
   showModal();
 }
 
-function openEditModal(programId) {
+function openEditModal(programId, modalContext = "active") {
   if (!state.isUnlocked) {
     return;
   }
@@ -690,15 +842,19 @@ function openEditModal(programId) {
   }
 
   state.modalMode = "edit";
+  state.modalContext = modalContext;
   state.activeProgramId = programId;
   state.activeTierId = program.tierId;
 
-  elements.modalTitle.textContent = "编辑项目";
+  elements.modalTitle.textContent = modalContext === "trash" ? "编辑回收站项目" : "编辑项目";
   elements.submitButton.textContent = "保存";
   elements.deleteButton.classList.remove("hidden");
+  elements.deleteButton.textContent = modalContext === "trash" ? "还原" : "删除";
+  elements.purgeButton.classList.toggle("hidden", modalContext !== "trash");
 
   elements.shortNameInput.value = program.shortName;
-  elements.schoolSelect.value = program.schoolId;
+  elements.schoolSearchInput.value = "";
+  syncSchoolOptions("", program.schoolId);
   elements.cnNameInput.value = program.cnName;
   elements.enNameInput.value = program.enName;
   elements.durationSelect.value = program.duration || "";
@@ -772,6 +928,21 @@ function closeReadModal() {
   elements.readModal.setAttribute("aria-hidden", "true");
 }
 
+function openTrashModal() {
+  if (!state.isUnlocked) {
+    return;
+  }
+
+  renderTrashBoard();
+  elements.trashModal.classList.remove("hidden");
+  elements.trashModal.setAttribute("aria-hidden", "false");
+}
+
+function closeTrashModal() {
+  elements.trashModal.classList.add("hidden");
+  elements.trashModal.setAttribute("aria-hidden", "true");
+}
+
 function openUnlockModal() {
   setUnlockError("");
   elements.unlockForm.reset();
@@ -795,6 +966,8 @@ function updateUnlockButtonState() {
   elements.unlockButton.classList.toggle("is-unlocked", state.isUnlocked);
   elements.unlockButton.title = state.isUnlocked ? "编辑功能已解锁" : "解锁编辑功能";
   elements.unlockButton.setAttribute("aria-label", state.isUnlocked ? "编辑功能已解锁" : "解锁编辑功能");
+  elements.trashButton.classList.toggle("hidden", !state.isUnlocked);
+  elements.trashButton.classList.toggle("is-visible", state.isUnlocked);
 }
 
 function updateModalSchoolPreview() {
@@ -834,6 +1007,7 @@ function normalizeProgram(program) {
     languageRequirement: program?.languageRequirement || "",
     recommendationRequirement: program?.recommendationRequirement || "",
     otherRequirements: program?.otherRequirements || "",
+    shown: Number(program?.shown) === 0 ? 0 : 1,
     statusHistory: history
   };
 }
@@ -1006,8 +1180,8 @@ function getLogoUrl(school) {
   return `https://www.google.com/s2/favicons?sz=128&domain_url=https://${school.domain}`;
 }
 
-function getProgramsByTier(tierId) {
-  return state.programs.filter((program) => program.tierId === tierId);
+function getProgramsByTier(tierId, shownValue = 1) {
+  return state.programs.filter((program) => program.tierId === tierId && program.shown === shownValue);
 }
 
 function scheduleSave(reason, delay) {

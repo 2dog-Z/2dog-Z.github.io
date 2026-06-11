@@ -14,6 +14,7 @@
         <h1>张二狗 Chambers 的选校清单</h1>
         <p id="program-count" class="page-meta">0 Programs In Total</p>
         <button id="unlock-button" class="icon-button unlock-button" type="button" title="登陆" aria-label="登陆按钮">⚙️</button>
+        <button id="trash-button" class="icon-button trash-button hidden" type="button" title="打开回收站" aria-label="打开回收站">🗑</button>
       </div>
       <div class="status-panel">
         <span id="save-status" class="save-status hidden"></span>
@@ -53,7 +54,10 @@
               <div id="modal-logo-placeholder" class="logo-placeholder"></div>
               <img id="modal-school-logo" alt="" hidden>
             </div>
-            <select id="program-school" name="schoolId" required></select>
+            <div class="school-select-controls">
+              <input id="program-school-search" type="text" placeholder="Search school in English" autocomplete="off">
+              <select id="program-school" name="schoolId" required></select>
+            </div>
           </div>
         </label>
 
@@ -114,6 +118,7 @@
 
         <div class="modal-actions">
           <button id="delete-button" class="action-button danger hidden" type="button">删除</button>
+          <button id="purge-button" class="action-button danger-secondary hidden" type="button">永久删除</button>
           <div class="spacer"></div>
           <button class="action-button secondary" type="button" data-close-modal="true">取消</button>
           <button id="submit-button" class="action-button primary" type="submit">保存</button>
@@ -176,6 +181,20 @@
           <div id="read-other" style="white-space: pre-wrap;">-</div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="trash-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-trash-modal="true"></div>
+    <div class="modal-dialog modal-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="trash-modal-title">
+      <div class="modal-header">
+        <div>
+          <h2 id="trash-modal-title">回收站</h2>
+          <p id="trash-count" class="modal-meta">0 Programs In Trash</p>
+        </div>
+        <button id="trash-modal-close" class="icon-button subtle" type="button" aria-label="关闭回收站">×</button>
+      </div>
+      <main id="trash-board" class="tier-board trash-board" aria-live="polite"></main>
     </div>
   </div>
 

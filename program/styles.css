@@ -50,10 +50,21 @@ button {
 .page-title-block {
   position: relative;
   display: inline-block;
-  padding-right: 56px;
+  padding-right: 104px;
 }
 
 .unlock-button {
+  position: absolute;
+  top: 50%;
+  right: 52px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(12px, -50%);
+  transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+  z-index: 5;
+}
+
+.trash-button {
   position: absolute;
   top: 50%;
   right: 0;
@@ -74,6 +85,18 @@ button {
 
 .unlock-button.is-unlocked {
   background: #deefe5;
+}
+
+.page-title-block:hover .trash-button:not(.hidden),
+.page-title-block:focus-within .trash-button:not(.hidden),
+.trash-button.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+}
+
+.trash-button.is-visible {
+  background: #f3eefc;
 }
 
 .page-header {
@@ -254,7 +277,7 @@ h1 {
 }
 
 .tier-list.empty::after {
-  content: "拖拽项目到这里，或点击右上角新建";
+  content: attr(data-empty-message);
   display: block;
   padding: 26px 14px;
   border: 1px dashed var(--border-strong);
@@ -265,7 +288,7 @@ h1 {
 }
 
 .tier-list.empty[data-locked="true"]::after {
-  content: "当前为冻结模式，悬停右侧点击⚙️并输入密码后解锁";
+  content: attr(data-locked-empty-message);
 }
 
 .program-card {
@@ -523,6 +546,14 @@ h1 {
   overflow-y: auto;
 }
 
+#trash-modal {
+  z-index: 30;
+}
+
+#program-modal {
+  z-index: 40;
+}
+
 .modal.hidden {
   display: none;
 }
@@ -551,6 +582,10 @@ h1 {
   width: min(420px, calc(100vw - 24px));
 }
 
+.modal-dialog--wide {
+  width: min(1180px, 100%);
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -561,6 +596,12 @@ h1 {
 
 .modal-header h2 {
   margin: 0;
+}
+
+.modal-meta {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .modal-form {
@@ -579,6 +620,11 @@ h1 {
   grid-template-columns: var(--logo-size) minmax(0, 1fr);
   gap: 12px;
   align-items: center;
+}
+
+.school-select-controls {
+  display: grid;
+  gap: 10px;
 }
 
 .select-logo-frame {
@@ -675,6 +721,16 @@ h1 {
   background: var(--danger-dark);
 }
 
+.action-button.danger-secondary {
+  background: #fff3f3;
+  color: var(--danger-dark);
+  border: 1px solid #efc1c1;
+}
+
+.action-button.danger-secondary:hover {
+  background: #ffe7e7;
+}
+
 .hidden {
   display: none !important;
 }
@@ -708,7 +764,7 @@ h1 {
     display: block;
     width: 100%;
     max-width: 100%;
-    padding-right: 52px;
+    padding-right: 100px;
   }
 
   .modal {
@@ -717,13 +773,25 @@ h1 {
 
   .unlock-button {
     top: 50%;
-    right: 0;
+    right: 48px;
     transform: translate(0, calc(-50% - 6px));
   }
 
   .page-title-block:hover .unlock-button,
   .page-title-block:focus-within .unlock-button,
   .unlock-button.is-unlocked {
+    transform: translate(0, -50%);
+  }
+
+  .trash-button {
+    top: 50%;
+    right: 0;
+    transform: translate(0, calc(-50% - 6px));
+  }
+
+  .page-title-block:hover .trash-button:not(.hidden),
+  .page-title-block:focus-within .trash-button:not(.hidden),
+  .trash-button.is-visible {
     transform: translate(0, -50%);
   }
 
@@ -737,6 +805,10 @@ h1 {
     max-height: calc(100vh - 24px);
     margin: 0 auto;
     border-radius: 18px;
+  }
+
+  .modal-dialog--wide {
+    width: 100%;
   }
 
   .tier-column {
