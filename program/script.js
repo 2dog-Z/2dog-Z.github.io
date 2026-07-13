@@ -106,7 +106,7 @@ const DEFAULT_PROGRAMS = [
 
 ];
 
-const WORKER_URL = "https://schoolprogram.twodogz.workers.dev"; // 替换为你的 Cloudflare Worker 网址
+const WORKER_URL = "https://schoolprogram.2dogz.net"; // 替换为你的 Cloudflare Worker 网址
 
 const STORAGE_KEY = "interactive-school-list-cache-v1";
 

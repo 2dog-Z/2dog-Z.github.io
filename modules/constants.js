@@ -75,7 +75,7 @@ export const TERMINAL_TRIM_TOP_LINES = 50;
  * - 避免 token 出现在前端代码/网络面板/本地存储中；
  * - 为后续加入更严格的鉴权/限流等策略预留入口。
  */
-export const GITHUB_WORKER_ORIGIN = "https://blogtokenmixer.twodogz.workers.dev";
+export const GITHUB_WORKER_ORIGIN = "https://blogtokenmixer.2dogz.net";
 
 /**
  * 前端与 Worker 之间用于校验的“暗号 Header 名称”。
@@ -102,4 +102,4 @@ export const GITHUB_WORKER_PASS = "2dogZ-Pass";
  * - 管理域与 Worker 不同域时，前端需要直连该 Worker 进行登录校验与会话验证
  * - 仅是服务地址，不属于敏感密钥；真正的密码哈希与会话签名密钥只应保存在 Worker 端
  */
-export const ADMIN_AUTH_WORKER_ORIGIN = "https://blogadmintry.twodogz.workers.dev";
+export const ADMIN_AUTH_WORKER_ORIGIN = "https://blogadmintry.2dogz.net";
