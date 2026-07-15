@@ -549,6 +549,9 @@ function renderBoard() {
     editContext: "active"
   });
   renderTrashBoard();
+
+  const loadingEl = document.getElementById("board-loading");
+  if (loadingEl) loadingEl.classList.add("is-hidden");
 }
 
 function updateProgramCount() {
