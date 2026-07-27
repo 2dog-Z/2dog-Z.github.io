@@ -1,8 +1,9 @@
 const TIER_DEFINITIONS = [
+  { id: "jackpot", label: "Jackpot | 超级大乐透" },
   { id: "lottery", label: "Lottery | 彩票" },
   { id: "reach", label: "Reach | 冲刺" },
   { id: "match", label: "Match | 主申" },
-  { id: "safety", label: "Safety | 保底" }
+  { id: "safety", label: "Safety | 稳妥" }
 ];
 
 const SCHOOL_OPTIONS = [
